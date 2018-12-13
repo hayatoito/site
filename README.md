@@ -1,5 +1,7 @@
 # Site
 
+[![Build Status](https://travis-ci.com/hayatoito/site.svg?branch=master)](https://travis-ci.com/hayatoito/site)
+
 **Site** is a fast, simple, and opinioned static site generator, written in
 [Rust](https://www.rust-lang.org/). Highlights includes:
 
