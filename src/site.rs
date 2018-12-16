@@ -31,7 +31,6 @@ struct MarkdownMetadata {
     toc: Option<bool>,
     draft: Option<bool>,
     template: Option<String>,
-    save_as: Option<String>,
 }
 
 impl FromStr for MarkdownMetadata {
@@ -98,12 +97,31 @@ impl FromStr for Markdown {
         let metadata = METADATA_COMMENT.replace_all(metadata, "");
         assert!(!metadata.contains("-->"));
         assert!(!metadata.contains("<!--"));
-        debug!("markdown medatada (before parsing): {}", metadata);
         let content = split.next().unwrap_or("");
         Ok(Markdown {
             metadata: metadata.parse()?,
             content: content.to_string(),
         })
+    }
+}
+
+fn slug_to_url(slug: &str) -> String {
+    if slug.is_empty() || slug == "index" {
+        "".to_string()
+    } else if slug.ends_with("/") {
+        slug.to_string()
+    } else if Path::new(slug).extension().is_none() {
+        format!("{}/", slug)
+    } else {
+        slug.to_string()
+    }
+}
+
+fn url_to_filename(url: &str) -> String {
+    if url.is_empty() || url.ends_with("/") {
+        format!("{}{}", url, "index.html")
+    } else {
+        url.to_string()
     }
 }
 
@@ -119,26 +137,10 @@ struct Article {
     url: String,
     page: bool,
     template: Option<String>,
-    save_as: Option<String>,
     content: String,
-    relative_path: PathBuf,
 }
 
 impl Article {
-    fn slug_to_filename(&self) -> PathBuf {
-        let mut path = PathBuf::from(&self.slug);
-        path.set_extension("");
-        path.push("index.html");
-        path
-    }
-    fn relative_filename(&self) -> PathBuf {
-        if let Some(save_as) = self.save_as.as_ref() {
-            PathBuf::from(save_as)
-        } else {
-            self.slug_to_filename()
-        }
-    }
-
     fn new(
         MarkdownSrc {
             relative_path,
@@ -155,17 +157,22 @@ impl Article {
                 .unwrap()
                 .to_string()
         };
-        let url = format!("{}/{}/", relative_path.parent().unwrap().display(), slug);
+        let url = relative_path
+            .parent()
+            .unwrap()
+            .join(slug_to_url(&slug))
+            .display()
+            .to_string();
         let content = markdown.render();
-        let use_toc = markdown.metadata.toc.unwrap_or(false);
+        let toc = markdown.metadata.toc.unwrap_or(false);
 
         Article {
             title: markdown.metadata.title,
             slug,
             date: markdown.metadata.date,
             update_date: markdown.metadata.update_date,
-            toc: use_toc,
-            toc_html: if use_toc {
+            toc,
+            toc_html: if toc {
                 Some(html::build_toc(&content))
             } else {
                 None
@@ -174,9 +181,7 @@ impl Article {
             url,
             page: markdown.metadata.page.unwrap_or(false),
             template: markdown.metadata.template,
-            save_as: markdown.metadata.save_as,
             content,
-            relative_path,
         }
     }
 
@@ -244,10 +249,9 @@ impl Article {
     ) -> Result<()> {
         let html = self.render(config, articles, tera)?;
         let mut out_file = PathBuf::from(out_dir);
-        out_file.push(self.relative_path.parent().unwrap());
-        out_file.push(self.relative_filename());
+        out_file.push(url_to_filename(&self.url));
         debug!("{:32} => {}", self.url, out_file.display());
-        std::fs::create_dir_all(&out_file.parent().expect(""))?;
+        std::fs::create_dir_all(&out_file.parent().unwrap())?;
         std::fs::write(&out_file, &html)?;
         Ok(())
     }
@@ -313,10 +317,6 @@ impl Site {
     }
 
     fn collect_markdown(&self, src_dir: impl AsRef<Path>) -> Result<Vec<MarkdownSrc>> {
-        debug!(
-            ">>> collect_markdown: src_dir: {}",
-            src_dir.as_ref().display()
-        );
         glob::glob(&format!("{}/**/*.md", src_dir.as_ref().display()))?
             .filter_map(std::result::Result::ok)
             .flat_map(|f| {
@@ -344,18 +344,17 @@ impl Site {
 
     fn render_markdowns(&self, tera: &Tera, src_dir: impl AsRef<Path>) -> Result<()> {
         let src_dir = src_dir.as_ref().canonicalize().unwrap();
-        info!("build starting: {}", src_dir.display());
-
-        info!("collecting markdown");
+        info!("Collecting markdown: {}", src_dir.display());
         let (pages, articles) = self
             .collect_markdown(&src_dir)?
             .into_iter()
             .partition::<Vec<MarkdownSrc>, _>(|src| src.markdown.metadata.page.unwrap_or(false));
-        info!("{} articles", articles.len());
-        info!("{} pages", pages.len());
-
-        // TODO: Assert that article has Some(date).
-        info!("build articles");
+        info!(
+            "Found {} articles and {} pages",
+            articles.len(),
+            pages.len()
+        );
+        info!("Build articles");
         let mut articles = articles
             .into_par_iter()
             .filter(|m| {
@@ -380,7 +379,7 @@ impl Site {
         articles.sort_by_key(|a| a.date);
         articles.reverse();
 
-        info!("build pages");
+        info!("Build pages");
         for m in pages {
             let page = Article::new(m);
             page.render_and_write(&self.config, Some(&articles), tera, &self.out_dir)?;
@@ -390,7 +389,7 @@ impl Site {
 
     fn copy_files(&self) -> Result<()> {
         info!(
-            "copy files: {} => {}",
+            "Copy files: {} => {}",
             self.src_dir.display(),
             self.out_dir.display()
         );
@@ -403,7 +402,7 @@ impl Site {
 
             let relative_path = src_path.strip_prefix(&self.src_dir).expect("");
             let out_path = self.out_dir.join(&relative_path);
-            debug!("{:32} => {})", relative_path.display(), out_path.display());
+            debug!("{:32} => {}", relative_path.display(), out_path.display());
 
             if src_path.is_dir() {
                 std::fs::create_dir_all(&out_path).expect("create_dir_all failed")
@@ -418,6 +417,33 @@ impl Site {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slug_to_url_test() {
+        assert_eq!(slug_to_url("foo"), "foo/");
+        assert_eq!(slug_to_url("foo/"), "foo/");
+        assert_eq!(slug_to_url("feed.xml"), "feed.xml");
+        assert_eq!(slug_to_url("feed.xml/"), "feed.xml/");
+        assert_eq!(slug_to_url("index"), "");
+        assert_eq!(slug_to_url(""), "");
+        assert_eq!(slug_to_url("a/b"), "a/b/");
+        assert_eq!(slug_to_url("a/b/"), "a/b/");
+        assert_eq!(slug_to_url("a/b.html"), "a/b.html");
+        assert_eq!(slug_to_url("a/b.html/"), "a/b.html/");
+    }
+
+    #[test]
+    fn url_to_filename_test() {
+        assert_eq!(url_to_filename(""), "index.html");
+        assert_eq!(url_to_filename("a"), "a");
+        assert_eq!(url_to_filename("a/"), "a/index.html");
+        assert_eq!(url_to_filename("a.html"), "a.html");
+        assert_eq!(url_to_filename("a.html/"), "a.html/index.html");
+        assert_eq!(url_to_filename("a/b"), "a/b");
+        assert_eq!(url_to_filename("a/b/"), "a/b/index.html");
+        assert_eq!(url_to_filename("a/b.html"), "a/b.html");
+        assert_eq!(url_to_filename("a/b.html/"), "a/b.html/index.html");
+    }
 
     #[test]
     fn parse_markdowne_metadata_test() {
