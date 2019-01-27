@@ -66,7 +66,6 @@ impl Markdown {
 
     fn post_process_markdown_html(html: &str) -> String {
         let html = html::build_header_links(&html);
-
         // For Bootstrap
         let html = html.replace("<table>", r#"<table class="table table-striped">"#);
 
@@ -108,7 +107,7 @@ impl FromStr for Markdown {
 fn slug_to_url(slug: &str) -> String {
     if slug.is_empty() || slug == "index" {
         "".to_string()
-    } else if slug.ends_with("/") {
+    } else if slug.ends_with('/') {
         slug.to_string()
     } else if Path::new(slug).extension().is_none() {
         format!("{}/", slug)
@@ -118,7 +117,7 @@ fn slug_to_url(slug: &str) -> String {
 }
 
 fn url_to_filename(url: &str) -> String {
-    if url.is_empty() || url.ends_with("/") {
+    if url.is_empty() || url.ends_with('/') {
         format!("{}{}", url, "index.html")
     } else {
         url.to_string()
