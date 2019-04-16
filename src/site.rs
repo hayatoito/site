@@ -67,6 +67,16 @@ impl Markdown {
 
     fn post_process_markdown_html(html: &str) -> String {
         let html = html::build_header_links(&html);
+
+        // Process site macro
+        // Before: <!-- site-macro raw XXX -->
+        // After: XXX
+        lazy_static! {
+            static ref SITE_MACRO: Regex =
+                Regex::new(r#"<!-- site-macro raw +(?P<raw>.+?) +-->"#).unwrap();
+        }
+        let html = SITE_MACRO.replace_all(&html, r#"$raw"#);
+
         // For Bootstrap
         let html = html.replace("<table>", r#"<table class="table table-striped">"#);
 
