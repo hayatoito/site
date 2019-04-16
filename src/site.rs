@@ -25,6 +25,7 @@ struct MarkdownSrc {
 struct MarkdownMetadata {
     page: Option<bool>,
     title: String,
+    author: Option<String>,
     date: Option<chrono::NaiveDate>,
     update_date: Option<chrono::NaiveDate>,
     slug: Option<String>,
@@ -128,6 +129,7 @@ fn url_to_filename(url: &str) -> String {
 struct Article {
     title: String,
     slug: String,
+    author: Option<String>,
     date: Option<chrono::NaiveDate>,
     update_date: Option<chrono::NaiveDate>,
     toc: bool,
@@ -168,6 +170,7 @@ impl Article {
         Article {
             title: markdown.metadata.title,
             slug,
+            author: markdown.metadata.author,
             date: markdown.metadata.date,
             update_date: markdown.metadata.update_date,
             toc,
@@ -357,13 +360,19 @@ impl Site {
         let mut articles = articles
             .into_par_iter()
             .filter(|m| {
-                if !m.markdown.metadata.draft.unwrap_or(false)
-                    || self.config.0.get("output_draft_article").is_some()
-                {
-                    true
+                if m.markdown.metadata.draft.unwrap_or(false) {
+                    if self.config.0.get("output_draft_article").is_some() {
+                        warn!(
+                            "{:32} => draft (|output_draft_article| is true)",
+                            m.relative_path.display()
+                        );
+                        true
+                    } else {
+                        warn!("{:32} => draft (skipped)", m.relative_path.display());
+                        false
+                    }
                 } else {
-                    debug!("{:32} => skip (draft)", m.relative_path.display());
-                    false
+                    true
                 }
             })
             .map(|m| -> Result<Article> {
