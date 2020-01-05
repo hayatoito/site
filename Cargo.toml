@@ -5,7 +5,7 @@ edition = "2018"
 license = "MIT"
 name = "site"
 repository = "https://github.com/hayatoito/site"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 failure = "0.1.3"
