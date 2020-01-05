@@ -288,6 +288,13 @@ impl Config {
     pub fn extend(&mut self, config: &mut Config) {
         self.0.append(&mut config.0);
     }
+
+    fn get_bool(&self, key: &str) -> bool {
+        match &self.0.get(key) {
+            Some(v) => v.as_str() == "true",
+            _ => false,
+        }
+    }
 }
 
 pub struct Site {
@@ -371,14 +378,14 @@ impl Site {
             .into_par_iter()
             .filter(|m| {
                 if m.markdown.metadata.draft.unwrap_or(false) {
-                    if self.config.0.get("output_draft_article").is_some() {
+                    if self.config.get_bool("output_draft_article") {
                         warn!(
-                            "{:32} => draft (|output_draft_article| is true)",
+                            "{:32} => draft => don't skip draft because |output_draft_article| is true",
                             m.relative_path.display()
                         );
                         true
                     } else {
-                        warn!("{:32} => draft (skipped)", m.relative_path.display());
+                        warn!("{:32} => draft => skipped", m.relative_path.display());
                         false
                     }
                 } else {
@@ -535,5 +542,4 @@ hello world
             }
         );
     }
-
 }
