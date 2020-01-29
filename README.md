@@ -1,6 +1,6 @@
 # Site
 
-[![Build Status](https://travis-ci.com/hayatoito/site.svg?branch=master)](https://travis-ci.com/hayatoito/site)
+![build](https://github.com/hayatoito/site/workflows/build/badge.svg)
 [![crates.io](https://img.shields.io/crates/v/site.svg)](https://crates.io/crates/site)
 
 **Site** is a fast, simple, and opinioned static site generator, written in
