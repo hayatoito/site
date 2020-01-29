@@ -1,6 +1,6 @@
 # Site
 
-![build](https://github.com/hayatoito/site/workflows/build/badge.svg)
+[![build](https://github.com/hayatoito/site/workflows/build/badge.svg)](https://github.com/hayatoito/site/actions)
 [![crates.io](https://img.shields.io/crates/v/site.svg)](https://crates.io/crates/site)
 
 **Site** is a fast, simple, and opinioned static site generator, written in
