@@ -1,5 +1,5 @@
+pub use anyhow::Result;
 use chrono::Datelike;
-use failure::format_err;
 use lazy_static::*;
 use log::*;
 use rayon::prelude::*;
@@ -11,10 +11,12 @@ use std::str::FromStr;
 use tera::compile_templates;
 use tera::{Context, Tera};
 
+use anyhow::{anyhow, Error};
+
 use crate::html;
 use crate::text;
 
-pub type Result<T> = std::result::Result<T, failure::Error>;
+// pub type Result<T> = std::result::Result<T, failure::Error>;
 
 struct MarkdownSrc {
     relative_path: PathBuf,
@@ -35,7 +37,7 @@ struct MarkdownMetadata {
 }
 
 impl FromStr for MarkdownMetadata {
-    type Err = failure::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(serde_yaml::from_str(s)?)
@@ -93,11 +95,11 @@ impl Markdown {
 }
 
 impl FromStr for Markdown {
-    type Err = failure::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Markdown> {
         let mut split = s.splitn(2, "\n\n");
-        let metadata = split.next().ok_or_else(|| format_err!("split error"))?;
+        let metadata = split.next().ok_or_else(|| anyhow!("split error"))?;
 
         // Ignore comments, such as <!-- prettier-ignore -->
         lazy_static! {
@@ -249,7 +251,7 @@ impl Article {
     fn render(&self, config: &Config, articles: Option<&[Article]>, tera: &Tera) -> Result<String> {
         let context = self.context(config, articles);
         tera.render(&format!("{}.html", self.template_name()), &context)
-            .map_err(|e| format_err!("renderer err: {}", e))
+            .map_err(|e| anyhow!("renderer err: {}", e))
     }
 
     fn render_and_write(
