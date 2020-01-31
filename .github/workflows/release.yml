@@ -19,15 +19,10 @@ jobs:
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Rustup
-        run: rustup update stable
-      - name: Rustup target add
-        if: matrix.os == 'ubuntu-latest'
-        run: rustup target add ${{ matrix.target }}
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Build
-        run: cargo build --verbose --release --target ${{ matrix.target }}
+      - uses: actions/checkout@v2
+      - run: rustup update stable
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --verbose --release --target ${{ matrix.target }}
       - name: Package
         if: matrix.os != 'windows-latest'
         run: |
