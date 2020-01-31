@@ -4,6 +4,7 @@ description = "A simple, fast, opinioned static site generator"
 edition = "2018"
 license = "Apache-2.0"
 name = "site"
+readme = "README.md"
 repository = "https://github.com/hayatoito/site"
 version = "0.1.4-alpha.0"
 
