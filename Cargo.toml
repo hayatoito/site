@@ -2,7 +2,7 @@
 authors = ["Hayato Ito <hayato@google.com>"]
 description = "A simple, fast, opinioned static site generator"
 edition = "2018"
-license = "MIT"
+license = "Apache-2.0"
 name = "site"
 repository = "https://github.com/hayatoito/site"
 version = "0.1.4-alpha.0"

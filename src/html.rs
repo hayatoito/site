@@ -1,5 +1,6 @@
 use lazy_static::*;
 use regex::Regex;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 // Convert the given string to a valid HTML element ID
@@ -113,13 +114,19 @@ pub fn build_toc(html: &str) -> String {
             id = &cap["id"],
             text = &cap["text"]
         );
-        if prev_level < level {
-            for _ in 0..(level - prev_level) {
-                toc.push_str(nav_start);
+        match prev_level.cmp(&level) {
+            Ordering::Less => {
+                for _ in 0..(level - prev_level) {
+                    toc.push_str(nav_start);
+                }
             }
-        } else if prev_level > level {
-            for _ in 0..(prev_level - level) {
-                toc.push_str(nav_end);
+            Ordering::Greater => {
+                for _ in 0..(prev_level - level) {
+                    toc.push_str(nav_end);
+                }
+            }
+            Ordering::Equal => {
+                // do nothing
             }
         }
         toc.push_str(&anchor);
@@ -184,5 +191,4 @@ mod tests {
 "##
         );
     }
-
 }

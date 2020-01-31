@@ -1,6 +1,3 @@
-use lazy_static::*;
-use regex::Regex;
-
 /// For pretieer: wrapping: "proseWrap": "always"
 /// e.g. "あいう\nえお" -> "あいうえお"
 /// See the test.
@@ -88,16 +85,7 @@ pub fn remove_newline_between_cjk(s: &str) -> String {
 }
 
 pub fn remove_prettier_ignore_preceeding_code_block(s: &str) -> String {
-    lazy_static! {
-        static ref PRETTIER_IGNORE_CODE_BLOCK: Regex =
-            regex::RegexBuilder::new("^<!-- prettier-ignore -->\n```")
-                .multi_line(true)
-                .build()
-                .unwrap();
-    }
-    PRETTIER_IGNORE_CODE_BLOCK
-        .replace_all(&s, "```")
-        .to_string()
+    s.replace("\n<!-- prettier-ignore -->\n```", "\n```")
 }
 
 #[cfg(test)]
@@ -106,9 +94,13 @@ mod tests {
 
     #[test]
     fn remove_prettier_ignore_preceeding_code_block_test() {
-        let s = r"<!-- prettier-ignore -->
+        let s = r"foo
+<!-- prettier-ignore -->
 ```html";
-        assert_eq!(remove_prettier_ignore_preceeding_code_block(s), "```html");
+        assert_eq!(
+            remove_prettier_ignore_preceeding_code_block(s),
+            "foo\n```html"
+        );
 
         let s = r"foo
 
@@ -157,5 +149,4 @@ ab";
 えお";
         assert_eq!(remove_newline_between_cjk(s), "あいう\n\nえお");
     }
-
 }
