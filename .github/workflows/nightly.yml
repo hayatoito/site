@@ -11,30 +11,32 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - name: Rustup
+      - name: rustup
         run: |
           rustup update ${{ matrix.rust }}
           rustup default ${{ matrix.rust }}
-      - name: Cache cargo registry
+      - name: cache cargo registry
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
+      - name: cache cargo index
         uses: actions/cache@v1
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
+      - name: cache cargo build
         uses: actions/cache@v1
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cargo update
+      - name: cargo update
         run: cargo update
-      - name: Build
+      - name: cargo build
         run: cargo build
-      - name: Test
+      - name: cargo test
         run: cargo test
-      - name: Clippy
+      - name: cargo fmt check
+        run: cargo fmt --all -- --check
+      - name: cargo clippy
         run: cargo clippy --all-targets --all-features -- --deny warnings
