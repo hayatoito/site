@@ -1,0 +1,50 @@
+name: release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+jobs:
+  build:
+    env:
+      BIN_NAME: site
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macOS-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Rustup
+        run: rustup update stable
+      - name: Rustup target add
+        if: matrix.os == 'ubuntu-latest'
+        run: rustup target add ${{ matrix.target }}
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+      - name: Package
+        if: matrix.os != 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ env.BIN_NAME }}
+          cd target/${{ matrix.target }}/release
+          tar czvf ../../../${{ env.BIN_NAME }}-${{ matrix.target }}.tar.gz ${{ env.BIN_NAME }}
+          cd -
+      - name: Package (windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ env.BIN_NAME }}.exe
+          cd target/${{ matrix.target }}/release
+          7z a ../../../${{ env.BIN_NAME }}-${{ matrix.target }}.zip ${{ env.BIN_NAME }}.exe
+          cd -
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '${{ env.BIN_NAME }}-${{ matrix.target }}*'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
