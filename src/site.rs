@@ -4,11 +4,10 @@ use lazy_static::*;
 use log::*;
 use rayon::prelude::*;
 use regex::Regex;
-use serde_derive::*;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tera::compile_templates;
 use tera::{Context, Tera};
 
 use anyhow::{anyhow, Error};
@@ -16,14 +15,12 @@ use anyhow::{anyhow, Error};
 use crate::html;
 use crate::text;
 
-// pub type Result<T> = std::result::Result<T, failure::Error>;
-
 struct MarkdownSrc {
     relative_path: PathBuf,
     markdown: Markdown,
 }
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
+#[derive(PartialEq, Eq, Debug, Deserialize, Default)]
 struct MarkdownMetadata {
     page: Option<bool>,
     title: String,
@@ -317,7 +314,7 @@ impl Site {
         let src_dir = root_dir.join("src");
         Site {
             config,
-            root_dir,
+            root_dir: root_dir.canonicalize().unwrap(),
             src_dir,
             out_dir,
             article_regex,
@@ -327,7 +324,7 @@ impl Site {
     pub fn build(&self) -> Result<()> {
         let src_dir = self.root_dir.join("src");
         let template_dir = self.root_dir.join("template");
-        let mut tera = compile_templates!(&format!("{}/**/*", template_dir.display()));
+        let mut tera = Tera::new(&format!("{}/**/*", template_dir.display()))?;
         tera.autoescape_on(vec![]); // Disable autoespacing completely
 
         self.render_markdowns(&tera, &src_dir)?;
