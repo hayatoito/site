@@ -209,7 +209,7 @@ impl Article {
             for a in articles {
                 year_articles
                     .entry(a.date.as_ref().unwrap().year())
-                    .or_insert_with(|| vec![])
+                    .or_insert_with(Vec::new)
                     .push(a);
             }
             let mut year_articles = year_articles
