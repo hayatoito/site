@@ -29,6 +29,7 @@ struct MarkdownMetadata {
     update_date: Option<chrono::NaiveDate>,
     slug: Option<String>,
     toc: Option<bool>,
+    toc_level: Option<u8>,
     draft: Option<bool>,
     template: Option<String>,
 }
@@ -184,7 +185,7 @@ impl Article {
             update_date: markdown.metadata.update_date,
             toc,
             toc_html: if toc {
-                Some(html::build_toc(&content))
+                Some(html::build_toc(&content, markdown.metadata.toc_level))
             } else {
                 None
             },

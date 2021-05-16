@@ -95,21 +95,31 @@ fn wrap_header_with_link(
     )
 }
 
-pub fn build_toc(html: &str) -> String {
-    let regex =
-        Regex::new(r#"<h(?P<level>[12]) id="(?P<id>.*?)">(<a.*?>)?(?P<text>.*?)(</a>)?</h\d>"#)
-            .unwrap();
+pub fn build_toc(html: &str, toc_level: Option<u8>) -> String {
+    let header_level: String = match toc_level {
+        Some(level) if level <= 9 => (1..=level).map(|i| i.to_string()).collect(),
+        Some(level) => {
+            log::warn!("Invalid toc_level is found: {}. Using 1-9...", level);
+            "1-9".to_string()
+        }
+        None => "1-9".to_string(),
+    };
+    let regex = Regex::new(&format!(
+        r#"<h(?P<level>[{}]) id="(?P<id>.*?)">(<a.*?>)?(?P<text>.*?)(</a>)?</h\d>"#,
+        header_level
+    ))
+    .unwrap();
     let mut toc = String::new();
-    let nav_start = r#"<nav class="nav nav-pills flex-column">
+    let list_start = r#"<ul>
 "#;
-    let nav_end = r#"</nav>
+    let list_end = r#"</ul>
 "#;
 
     let mut prev_level = 0;
     for cap in regex.captures_iter(html) {
         let level: usize = cap["level"].parse().unwrap();
         let anchor = format!(
-            r##"<a class="nav-link" href="#{id}">{text}</a>
+            r##"<li><a href="#{id}">{text}</a></li>
 "##,
             id = &cap["id"],
             text = &cap["text"]
@@ -117,12 +127,12 @@ pub fn build_toc(html: &str) -> String {
         match prev_level.cmp(&level) {
             Ordering::Less => {
                 for _ in 0..(level - prev_level) {
-                    toc.push_str(nav_start);
+                    toc.push_str(list_start);
                 }
             }
             Ordering::Greater => {
                 for _ in 0..(prev_level - level) {
-                    toc.push_str(nav_end);
+                    toc.push_str(list_end);
                 }
             }
             Ordering::Equal => {
@@ -133,7 +143,7 @@ pub fn build_toc(html: &str) -> String {
         prev_level = level;
     }
     for _ in 0..prev_level {
-        toc.push_str(nav_end);
+        toc.push_str(list_end);
     }
     toc
 }
@@ -154,10 +164,10 @@ mod tests {
     #[test]
     fn build_toc_test() {
         assert_eq!(
-            build_toc(r#"<h1 id="hello1">hello</h1>"#),
-            r##"<nav class="nav nav-pills flex-column">
-<a class="nav-link" href="#hello1">hello</a>
-</nav>
+            build_toc(r#"<h1 id="hello1">hello</h1>"#, None),
+            r##"<ul>
+<li><a href="#hello1">hello</a></li>
+</ul>
 "##
         );
 
@@ -165,12 +175,13 @@ mod tests {
             build_toc(
                 r#"<h1 id="hello1">Hello 1</h1>
 <h1 id="hello2">Hello 2</h1>
-"#
+"#,
+                None
             ),
-            r##"<nav class="nav nav-pills flex-column">
-<a class="nav-link" href="#hello1">Hello 1</a>
-<a class="nav-link" href="#hello2">Hello 2</a>
-</nav>
+            r##"<ul>
+<li><a href="#hello1">Hello 1</a></li>
+<li><a href="#hello2">Hello 2</a></li>
+</ul>
 "##
         );
 
@@ -179,15 +190,31 @@ mod tests {
                 r#"<h1 id="hello1">Hello 1</h1>
 <h1 id="hello2">Hello 2</h1>
 <h2 id="hello3">Hello 3</h2>
-"#
+"#,
+                None
             ),
-            r##"<nav class="nav nav-pills flex-column">
-<a class="nav-link" href="#hello1">Hello 1</a>
-<a class="nav-link" href="#hello2">Hello 2</a>
-<nav class="nav nav-pills flex-column">
-<a class="nav-link" href="#hello3">Hello 3</a>
-</nav>
-</nav>
+            r##"<ul>
+<li><a href="#hello1">Hello 1</a></li>
+<li><a href="#hello2">Hello 2</a></li>
+<ul>
+<li><a href="#hello3">Hello 3</a></li>
+</ul>
+</ul>
+"##
+        );
+
+        assert_eq!(
+            build_toc(
+                r#"<h1 id="hello1">Hello 1</h1>
+<h1 id="hello2">Hello 2</h1>
+<h2 id="hello3">Hello 3</h2>
+"#,
+                Some(1)
+            ),
+            r##"<ul>
+<li><a href="#hello1">Hello 1</a></li>
+<li><a href="#hello2">Hello 2</a></li>
+</ul>
 "##
         );
     }
