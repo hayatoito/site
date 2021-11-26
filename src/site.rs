@@ -66,7 +66,7 @@ impl Markdown {
     }
 
     fn post_process_markdown_html(html: &str) -> String {
-        let html = html::build_header_links(&html);
+        let html = html::build_header_links(html);
 
         // Process site macro
         // Before: <!-- site-macro raw XXX -->
