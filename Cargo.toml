@@ -14,16 +14,16 @@ lazy_static = "1.4.0"
 log = "0.4.14"
 loggerv = "0.7.2"
 pulldown-cmark = "0.8.0"
-rayon = "1.5.0"
+rayon = "1.5.1"
 regex = "1.5.4"
-serde = { version = "1.0.126", features = ["derive"] }
-serde_yaml = "0.8.17"
-structopt = "0.3.21"
-tera = "1.8.0"
+serde = { version = "1.0.130", features = ["derive"] }
+serde_yaml = "0.8.21"
+structopt = "0.3.25"
+tera = "1.15.0"
 toml = "0.5.8"
-unicode-width = "0.1.8"
+unicode-width = "0.1.9"
 walkdir = "2.3.2"
-anyhow = "1.0.40"
+anyhow = "1.0.48"
 
 [dependencies.chrono]
 features = ["serde"]
