@@ -77,17 +77,6 @@ impl Markdown {
         }
         let html = SITE_MACRO.replace_all(&html, r#"$raw"#);
 
-        // For Bootstrap
-        let html = html.replace("<table>", r#"<table class="table table-striped">"#);
-
-        // For Google prettyprint
-        lazy_static! {
-            static ref PRE_CODE_WITH_CLASS: Regex =
-                Regex::new(r#"<pre><code class="(?P<class>.*?)">"#).unwrap();
-        }
-        let html =
-            PRE_CODE_WITH_CLASS.replace_all(&html, r#"<pre><code class="$class prettyprint">"#);
-
         html.to_string()
     }
 }
