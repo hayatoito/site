@@ -6,8 +6,6 @@ use site::{Config, Result, Site};
 
 #[derive(StructOpt, Debug)]
 struct Opt {
-    #[structopt(short = "v", parse(from_occurrences))]
-    verbose: u64,
     #[structopt(subcommand)]
     cmd: Command,
 }
@@ -29,7 +27,7 @@ enum Command {
 
 fn main() -> Result<()> {
     let opt = Opt::from_args();
-    loggerv::init_with_verbosity(opt.verbose).unwrap();
+    pretty_env_logger::init();
     match opt.cmd {
         Command::Build {
             config,

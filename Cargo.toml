@@ -12,7 +12,6 @@ version = "0.1.6-alpha.1"
 glob = "0.3.0"
 lazy_static = "1.4.0"
 log = "0.4.14"
-loggerv = "0.7.2"
 pulldown-cmark = "0.8.0"
 rayon = "1.5.1"
 regex = "1.5.4"
@@ -24,6 +23,7 @@ toml = "0.5.8"
 unicode-width = "0.1.9"
 walkdir = "2.3.2"
 anyhow = "1.0.48"
+pretty_env_logger = "0.4.0"
 
 [dependencies.chrono]
 features = ["serde"]

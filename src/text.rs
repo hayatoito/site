@@ -35,50 +35,44 @@ pub fn remove_newline_between_cjk(s: &str) -> String {
 
     let mut state = State::Char;
     for c in s.chars() {
-        let ctype = CharacterType::from(c);
-        match state {
-            State::Char => match ctype {
-                CharacterType::Newline | CharacterType::Space | CharacterType::Char => {
-                    out.push(c);
-                    state = State::Char;
-                }
-                CharacterType::WideChar => {
-                    out.push(c);
-                    state = State::WideChar;
-                }
-            },
-            State::WideChar => match ctype {
-                CharacterType::Newline => {
-                    buffer.push(c);
-                    state = State::WideCharNewlineSpaces;
-                }
-                CharacterType::Space | CharacterType::Char => {
-                    out.push(c);
-                    state = State::Char;
-                }
-                CharacterType::WideChar => {
-                    out.push(c);
-                    state = State::WideChar;
-                }
-            },
-            State::WideCharNewlineSpaces => match ctype {
-                CharacterType::Newline | CharacterType::Char => {
-                    out.push_str(&buffer);
-                    out.push(c);
-                    buffer.clear();
-                    state = State::Char;
-                }
-                CharacterType::Space => {
-                    buffer.push(c);
-                    state = State::WideCharNewlineSpaces;
-                }
-                CharacterType::WideChar => {
-                    // Ignore buffer
-                    buffer.clear();
-                    out.push(c);
-                    state = State::WideChar;
-                }
-            },
+        let new_char = CharacterType::from(c);
+        match (state, new_char) {
+            (State::Char, CharacterType::Newline | CharacterType::Space | CharacterType::Char) => {
+                out.push(c);
+                state = State::Char;
+            }
+            (State::Char, CharacterType::WideChar) => {
+                out.push(c);
+                state = State::WideChar;
+            }
+            (State::WideChar, CharacterType::Newline) => {
+                buffer.push(c);
+                state = State::WideCharNewlineSpaces;
+            }
+            (State::WideChar, CharacterType::Space | CharacterType::Char) => {
+                out.push(c);
+                state = State::Char;
+            }
+            (State::WideChar, CharacterType::WideChar) => {
+                out.push(c);
+                state = State::WideChar;
+            }
+            (State::WideCharNewlineSpaces, CharacterType::Newline | CharacterType::Char) => {
+                out.push_str(&buffer);
+                out.push(c);
+                buffer.clear();
+                state = State::Char;
+            }
+            (State::WideCharNewlineSpaces, CharacterType::Space) => {
+                buffer.push(c);
+                state = State::WideCharNewlineSpaces;
+            }
+            (State::WideCharNewlineSpaces, CharacterType::WideChar) => {
+                // Ignore buffer
+                buffer.clear();
+                out.push(c);
+                state = State::WideChar;
+            }
         }
     }
     out
@@ -86,6 +80,10 @@ pub fn remove_newline_between_cjk(s: &str) -> String {
 
 pub fn remove_prettier_ignore_preceeding_code_block(s: &str) -> String {
     s.replace("\n<!-- prettier-ignore -->\n```", "\n```")
+}
+
+pub fn remove_deno_fmt_ignore(s: &str) -> String {
+    s.replace("\n<!-- deno-fmt-ignore -->\n", "\n")
 }
 
 #[cfg(test)]

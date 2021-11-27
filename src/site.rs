@@ -1,7 +1,7 @@
+use anyhow::Context as _;
 pub use anyhow::Result;
 use chrono::Datelike;
 use lazy_static::*;
-use log::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -15,13 +15,8 @@ use anyhow::{anyhow, Error};
 use crate::html;
 use crate::text;
 
-struct MarkdownSrc {
-    relative_path: PathBuf,
-    markdown: Markdown,
-}
-
 #[derive(PartialEq, Eq, Debug, Deserialize, Default)]
-struct MarkdownMetadata {
+struct Metadata {
     page: Option<bool>,
     title: String,
     author: Option<String>,
@@ -34,7 +29,7 @@ struct MarkdownMetadata {
     template: Option<String>,
 }
 
-impl FromStr for MarkdownMetadata {
+impl FromStr for Metadata {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
@@ -42,9 +37,15 @@ impl FromStr for MarkdownMetadata {
     }
 }
 
+#[derive(Debug)]
+struct MarkdownFile {
+    relative_path: PathBuf,
+    markdown: Markdown,
+}
+
 #[derive(PartialEq, Eq, Debug)]
 struct Markdown {
-    metadata: MarkdownMetadata,
+    metadata: Metadata,
     content: String,
 }
 
@@ -64,15 +65,16 @@ impl Markdown {
 
     fn pre_process_content(&self) -> String {
         let s = text::remove_newline_between_cjk(&self.content);
-        text::remove_prettier_ignore_preceeding_code_block(&s)
+        let s = text::remove_prettier_ignore_preceeding_code_block(&s);
+        text::remove_deno_fmt_ignore(&s)
     }
 
     fn post_process_markdown_html(html: &str) -> String {
         let html = html::build_header_links(html);
 
-        // Process site macro
-        // Before: <!-- site-macro raw XXX -->
-        // After: XXX
+        // Process site macro:
+        // From: <!-- site-macro raw XXX -->
+        // To: XXX
         lazy_static! {
             static ref SITE_MACRO: Regex =
                 Regex::new(r#"<!-- site-macro raw +(?P<raw>.+?) +-->"#).unwrap();
@@ -87,21 +89,50 @@ impl FromStr for Markdown {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Markdown> {
-        let mut split = s.splitn(2, "\n\n");
-        let metadata = split.next().ok_or_else(|| anyhow!("split error"))?;
-
-        // Ignore comments, such as <!-- prettier-ignore -->
         lazy_static! {
-            static ref METADATA_COMMENT: Regex =
-                Regex::new(r"(<!-- .* -->)|(\s*<!--\s*)|(\s*-->\s*)").unwrap();
+            // Skip the comment at the beginning. Emacs may use the first line for buffer-local variables.
+            // e.g. <!-- -*- apheleia-formatters: prettier -*- -->
+            static ref COMMENT_LINES: Regex = Regex::new(r#"^<!--.*-->\n+"#).unwrap();
+
+            static ref TITLE: Regex = Regex::new(r#"^# +(.+?) *\n+"#).unwrap();
         }
-        let metadata = METADATA_COMMENT.replace_all(metadata, "");
-        assert!(!metadata.contains("-->"));
-        assert!(!metadata.contains("<!--"));
-        let content = split.next().unwrap_or("");
+
+        let s = COMMENT_LINES.replace_all(s, "");
+
+        let (metadata_yaml, content) = if let Some(cap) = TITLE.captures(&s) {
+            // If the first line starts with "#", treat it as a title.
+            let title = cap[1].to_string();
+            let s = TITLE.replace(&s, "").to_string();
+
+            let mut split = s.splitn(2, "\n\n");
+
+            // Add "title: xxx" to metadata
+            let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
+            let metadata_yaml = format!("title: {}\n{}", title, metadata_yaml);
+
+            let content = split.next().unwrap_or("");
+
+            (metadata_yaml, content.to_string())
+        } else {
+            let mut split = s.splitn(2, "\n\n");
+            let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
+            let content = split.next().unwrap_or("");
+            (metadata_yaml.to_string(), content.to_string())
+        };
+
+        // Ignore comments, such as <!-- prettier-ignore -->, in metadata.
+        lazy_static! {
+            static ref METADATA_COMMENT: Regex = Regex::new(r"(<!--.*\n*)|(-->.*\n*)").unwrap();
+        }
+        let metadata_yaml = METADATA_COMMENT.replace_all(&metadata_yaml, "");
+        assert!(!metadata_yaml.contains("-->"));
+        assert!(!metadata_yaml.contains("<!--"));
+
         Ok(Markdown {
-            metadata: metadata.parse()?,
-            content: content.to_string(),
+            metadata: metadata_yaml
+                .parse()
+                .with_context(|| format!("can not parse metatada: {}", metadata_yaml))?,
+            content,
         })
     }
 }
@@ -144,11 +175,12 @@ struct Article {
 
 impl Article {
     fn new(
-        MarkdownSrc {
+        MarkdownFile {
             relative_path,
             markdown,
-        }: MarkdownSrc,
+        }: MarkdownFile,
     ) -> Article {
+        log::debug!("article: {}", relative_path.display());
         let slug = if let Some(slug) = markdown.metadata.slug.as_ref() {
             slug.to_string()
         } else {
@@ -253,7 +285,7 @@ impl Article {
         let html = self.render(config, articles, tera)?;
         let mut out_file = PathBuf::from(out_dir);
         out_file.push(url_to_filename(&self.url));
-        debug!("{:32} => {}", self.url, out_file.display());
+        log::debug!("{:32} => {}", self.url, out_file.display());
         std::fs::create_dir_all(&out_file.parent().unwrap())?;
         std::fs::write(&out_file, &html)?;
         Ok(())
@@ -326,7 +358,7 @@ impl Site {
         Ok(())
     }
 
-    fn collect_markdown(&self, src_dir: impl AsRef<Path>) -> Result<Vec<MarkdownSrc>> {
+    fn collect_markdown(&self, src_dir: impl AsRef<Path>) -> Result<Vec<MarkdownFile>> {
         glob::glob(&format!("{}/**/*.md", src_dir.as_ref().display()))?
             .filter_map(std::result::Result::ok)
             .flat_map(|f| {
@@ -340,43 +372,47 @@ impl Site {
                     Some(f)
                 }
             })
-            .map(|f| -> Result<MarkdownSrc> {
+            .map(|f| -> Result<MarkdownFile> {
                 let relative_path = f.strip_prefix(&src_dir).expect("prefix does not match");
-                Ok(MarkdownSrc {
+                log::debug!("found: {}", relative_path.display());
+                Ok(MarkdownFile {
                     relative_path: PathBuf::from(relative_path),
-                    markdown: std::fs::read_to_string(&f)?.parse()?,
+                    markdown: std::fs::read_to_string(&f)
+                        .with_context(|| format!("can not read: {}", f.display()))?
+                        .parse()
+                        .with_context(|| format!("can not parse: {}", f.display()))?,
                 })
             })
-            .collect::<Vec<Result<MarkdownSrc>>>()
+            .collect::<Vec<Result<MarkdownFile>>>()
             .into_iter()
             .collect()
     }
 
     fn render_markdowns(&self, tera: &Tera, src_dir: impl AsRef<Path>) -> Result<()> {
         let src_dir = src_dir.as_ref().canonicalize().unwrap();
-        info!("Collecting markdown: {}", src_dir.display());
+        log::info!("Collecting markdown: {}", src_dir.display());
         let (pages, articles) = self
             .collect_markdown(&src_dir)?
             .into_iter()
-            .partition::<Vec<MarkdownSrc>, _>(|src| src.markdown.metadata.page.unwrap_or(false));
-        info!(
+            .partition::<Vec<MarkdownFile>, _>(|src| src.markdown.metadata.page.unwrap_or(false));
+        log::info!(
             "Found {} articles and {} pages",
             articles.len(),
             pages.len()
         );
-        info!("Build articles");
+        log::info!("Build articles");
         let mut articles = articles
             .into_par_iter()
             .filter(|m| {
                 if m.markdown.metadata.draft.unwrap_or(false) {
                     if self.config.get_bool("output_draft_article") {
-                        warn!(
+                        log::warn!(
                             "{:32} => draft => don't skip draft because |output_draft_article| is true",
                             m.relative_path.display()
                         );
                         true
                     } else {
-                        warn!("{:32} => draft => skipped", m.relative_path.display());
+                        log::warn!("{:32} => draft => skipped", m.relative_path.display());
                         false
                     }
                 } else {
@@ -395,7 +431,7 @@ impl Site {
         articles.sort_by_key(|a| a.date);
         articles.reverse();
 
-        info!("Build pages");
+        log::info!("Build pages");
         for m in pages {
             let page = Article::new(m);
             page.render_and_write(&self.config, Some(&articles), tera, &self.out_dir)?;
@@ -404,7 +440,7 @@ impl Site {
     }
 
     fn copy_files(&self) -> Result<()> {
-        info!(
+        log::info!(
             "Copy files: {} => {}",
             self.src_dir.display(),
             self.out_dir.display()
@@ -418,7 +454,7 @@ impl Site {
 
             let relative_path = src_path.strip_prefix(&self.src_dir).expect("");
             let out_path = self.out_dir.join(&relative_path);
-            debug!("{:32} => {}", relative_path.display(), out_path.display());
+            log::debug!("{:32} => {}", relative_path.display(), out_path.display());
 
             if src_path.is_dir() {
                 std::fs::create_dir_all(&out_path).expect("create_dir_all failed")
@@ -468,8 +504,8 @@ slug: 10th-anniversary
 date: 2018-01-11
 ";
         assert_eq!(
-            s.parse::<MarkdownMetadata>().unwrap(),
-            MarkdownMetadata {
+            s.parse::<Metadata>().unwrap(),
+            Metadata {
                 title: "Hello".to_string(),
                 slug: Some("10th-anniversary".to_string()),
                 date: Some("2018-01-11".parse().unwrap()),
@@ -490,7 +526,7 @@ hello world
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
-                metadata: MarkdownMetadata {
+                metadata: Metadata {
                     title: "Hello".to_string(),
                     slug: Some("10th-anniversary".to_string()),
                     date: Some("2018-01-11".parse().unwrap()),
@@ -509,7 +545,7 @@ hello world
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
-                metadata: MarkdownMetadata {
+                metadata: Metadata {
                     title: "Hello".to_string(),
                     ..Default::default()
                 },
@@ -525,8 +561,50 @@ hello world
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
-                metadata: MarkdownMetadata {
+                metadata: Metadata {
                     title: "Hello".to_string(),
+                    ..Default::default()
+                },
+                content: "hello world\n".to_string(),
+            }
+        );
+
+        // If the first line starts with "#", treat that as a title.
+        let s = r"# title
+
+<!-- prettier-ignore -->
+date: 2018-01-11
+
+hello world
+";
+        assert_eq!(
+            s.parse::<Markdown>().unwrap(),
+            Markdown {
+                metadata: Metadata {
+                    title: "title".to_string(),
+                    date: Some("2018-01-11".parse().unwrap()),
+                    ..Default::default()
+                },
+                content: "hello world\n".to_string(),
+            }
+        );
+
+        // If the first line starts with "<!--", Ignore that
+        let s = r"<!-- -*- apheleia-formatters: prettier -*-  -->
+
+# title
+
+<!-- prettier-ignore -->
+date: 2018-01-11
+
+hello world
+";
+        assert_eq!(
+            s.parse::<Markdown>().unwrap(),
+            Markdown {
+                metadata: Metadata {
+                    title: "title".to_string(),
+                    date: Some("2018-01-11".parse().unwrap()),
                     ..Default::default()
                 },
                 content: "hello world\n".to_string(),
