@@ -804,7 +804,7 @@ checksum = "533494a8f9b724d33625ab53c6c4800f7cc445895924a8ef649222dcb76e938b"
 
 [[package]]
 name = "site"
-version = "0.1.6-alpha.1"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "chrono",
