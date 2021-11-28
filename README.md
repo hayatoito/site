@@ -37,7 +37,7 @@ as your starter boilerplate.
 [https://hayatoito.github.io/](https://hayatoito.github.io/) is built from that
 repository.
 
-# Directory structure
+# Folder structure
 
 ```text
 root_dir/
@@ -48,20 +48,20 @@ root_dir/
 ```
 
 - [`src/`](https://github.com/hayatoito/hayatoito.github.io/tree/main/src) is a
-  directory where your all markdown files live. They are converted into HTML
-  files, using Jinja2 template, and are copied into the output directory.
+  folder where your all markdown files live. They are converted into HTML files,
+  using Jinja2 template, and are copied into the output directory.
 
   Any other resources in `src` directory are also copied to the output
   directory.
 
 - [`template/`](https://github.com/hayatoito/hayatoito.github.io/tree/main/template)
-  is a directory where jinja2's template files live.
+  is a folder where jinja2's template files live.
 
-# Markdown
+# Markdown format
 
-`site` supports markdown:
+`Site` uses markdown.
 
-```text
+```markdown
 # Article title
 
 <!--
@@ -70,21 +70,82 @@ date: 2021-12-01
 
 # Section
 
-Hello world!
+Hello Article!
+
+- hello
+- world
 ```
 
 Nothing special except for:
 
 - The first section is considered as a title of the article.
-- _Metadata_, such as `date` follows.
+- _Metadata_, such as `date`, follows.
 
 # Metadata
 
 TODO: Explain
 
+| Name          | Description                               | Default value                             |
+| ------------- | ----------------------------------------- | ----------------------------------------- |
+| `page`        |                                           | false                                     |
+| `date`        |                                           | (`date` is mandatory unless `page: true`) |
+| `update_date` |                                           | NA                                        |
+| `author`      |                                           | NA                                        |
+| `slug`        | The page's URL                            | Calculated by a relative PATH to `src`    |
+| `toc`         | Whether to generate Table of Contents     | false                                     |
+| `toc_level`   |                                           | NA (arbitrary depth)                      |
+| `draft`       | Skip this markdown                        | false                                     |
+| `template`    | Template file to use in `template` folder | `article` or `page`                       |
+
+# Pages
+
+If a markdown's metadata contains `page: true`, **Site** consider that the
+markdown represents a _page_, instead of an _article_.
+
+```markdown
+# Page title
+
+<!--
+page: true
+-->
+
+# Section
+
+Hello Page!
+
+- hello
+- world
+```
+
+The differences between _article_ and _page_ are:
+
+- A _page_ will not be included in `articles` template variable. Neither in
+  `articles_by_year`.
+- A _page_ doesn't have to contain `date` metadata.
+
 # Template variables
 
 TODO: Explain
+
+| Name               | page | article | Description                                                |
+| ------------------ | ---- | ------- | ---------------------------------------------------------- |
+| `entry`            | x    | x       | Represents an article or a page (its metadata and content) |
+| `site`             | x    | x       | Site configuration given by `--config` parameter           |
+| `articles`         | x    |         | The list of the articles                                   |
+| `articles_by_year` | x    |         | The list of { year, articles}                              |
+
+- `articles` and `articles_by_year` are only available in a page. In other
+  words, an article can't know other articles.
+
+## `entry`
+
+In addition to its metadata, `entry` contains the following fields:
+
+| Name             | Description                    |
+| ---------------- | ------------------------------ |
+| `entry.title`    | Title                          |
+| `entry.content`  | Generated HTML                 |
+| `entry.toc_html` | Generated TOC (if `toc: true`) |
 
 # Build
 
@@ -94,15 +155,15 @@ TODO: Explain
 site build --root-dir . --config=config.toml --out-dir out
 ```
 
-`root-dir` should contain `src` and `template` directories.
+`root-dir` should contain `src` and `template` folders.
 
 See
 [Make.zsh](https://github.com/hayatoito/hayatoito.github.io/blob/main/Make.zsh)
-for the example CLI for various tasks.
+for the example CLI usages for various tasks.
 
 ## GitHub Action
 
 You can also use GitHub Action to build and deploy automatically if you are
-using GitHub pages. See
+using GitHub Pages. See
 [build.yml](https://github.com/hayatoito/hayatoito.github.io/blob/main/.github/workflows/build.yml)
 as an example.

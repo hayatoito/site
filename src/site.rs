@@ -229,14 +229,14 @@ impl Article {
 
         let mut context = config.context();
         if let Some(articles) = articles {
-            let mut year_articles = BTreeMap::<i32, Vec<&Article>>::new();
+            let mut articles_by_year = BTreeMap::<i32, Vec<&Article>>::new();
             for a in articles {
-                year_articles
+                articles_by_year
                     .entry(a.date.as_ref().unwrap().year())
                     .or_insert_with(Vec::new)
                     .push(a);
             }
-            let mut year_articles = year_articles
+            let mut articles_by_year = articles_by_year
                 .into_iter()
                 .map(|(year, mut articles)| {
                     articles.sort_by_key(|a| a.date);
@@ -244,18 +244,25 @@ impl Article {
                     YearArticles { year, articles }
                 })
                 .collect::<Vec<_>>();
-            year_articles.reverse();
+            articles_by_year.reverse();
+
             context.insert("articles", articles);
-            context.insert("year_articles", &year_articles);
-        }
-        context.insert("article", &self);
+            context.insert("articles_by_year", &articles_by_year);
+        };
+        context.insert("entry", &self);
         context
     }
 
     fn template_name(&self) -> &str {
         match self.template.as_ref() {
             Some(a) => a,
-            None => "article",
+            None => {
+                if self.page {
+                    "page"
+                } else {
+                    "article"
+                }
+            }
         }
     }
 
@@ -292,9 +299,7 @@ impl Config {
 
     fn context(&self) -> Context {
         let mut context = Context::new();
-        for (k, v) in &self.0 {
-            context.insert(k, v);
-        }
+        context.insert("site", &self.0);
         context
     }
 
@@ -390,6 +395,15 @@ impl Site {
             articles.len(),
             pages.len()
         );
+
+        for article in &articles {
+            anyhow::ensure!(
+                article.markdown.metadata.date.is_some(),
+                "{} doesn't have date",
+                article.relative_path.display()
+            )
+        }
+
         log::info!("Build articles");
         let mut articles = articles
             .into_par_iter()
