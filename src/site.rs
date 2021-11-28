@@ -248,24 +248,14 @@ impl Article {
             context.insert("articles", articles);
             context.insert("year_articles", &year_articles);
         }
-        if self.page {
-            context.insert("page", &self);
-        } else {
-            context.insert("article", &self);
-        }
+        context.insert("article", &self);
         context
     }
 
     fn template_name(&self) -> &str {
         match self.template.as_ref() {
             Some(a) => a,
-            None => {
-                if self.page {
-                    "page"
-                } else {
-                    "article"
-                }
-            }
+            None => "article",
         }
     }
 
