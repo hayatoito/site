@@ -18,7 +18,6 @@ pulldown-cmark = "0.8.0"
 rayon = "1.5.1"
 regex = "1.5.4"
 serde = { version = "1.0.130", features = ["derive"] }
-serde_yaml = "0.8.21"
 structopt = "0.3.25"
 tera = "1.15.0"
 toml = "0.5.8"

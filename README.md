@@ -65,7 +65,7 @@ root_dir/
 # Article title
 
 <!--
-date: 2021-12-01
+date = "2021-12-01"
 -->
 
 # Section
@@ -106,7 +106,7 @@ markdown represents a _page_, instead of an _article_.
 # Page title
 
 <!--
-page: true
+page = true
 -->
 
 # Section

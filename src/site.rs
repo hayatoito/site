@@ -33,7 +33,7 @@ impl FromStr for Metadata {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self> {
-        Ok(serde_yaml::from_str(s)?)
+        Ok(toml::from_str(s)?)
     }
 }
 
@@ -108,7 +108,8 @@ impl FromStr for Markdown {
 
             // Add "title: xxx" to metadata
             let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
-            let metadata_yaml = format!("title: {}\n{}", title, metadata_yaml);
+            // TODO: Espace double quote?
+            let metadata_yaml = format!("title = \"{}\"\n{}", title, metadata_yaml);
 
             let content = split.next().unwrap_or("");
 
@@ -503,10 +504,10 @@ mod tests {
 
     #[test]
     fn parse_markdowne_metadata_test() {
-        let s = r"title: Hello
-slug: 10th-anniversary
-date: 2018-01-11
-";
+        let s = r#"title = "Hello"
+slug = "10th-anniversary"
+date = "2018-01-11"
+"#;
         assert_eq!(
             s.parse::<Metadata>().unwrap(),
             Metadata {
@@ -520,12 +521,12 @@ date: 2018-01-11
 
     #[test]
     fn parse_markdown_test() {
-        let s = r"title: Hello
-slug: 10th-anniversary
-date: 2018-01-11
+        let s = r#"title = "Hello"
+slug = "10th-anniversary"
+date = "2018-01-11"
 
 hello world
-";
+"#;
 
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
@@ -540,12 +541,12 @@ hello world
             }
         );
 
-        let s = r"<!--
-title: Hello
+        let s = r#"<!--
+title = "Hello"
 -->
 
 hello world
-";
+"#;
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
@@ -557,11 +558,11 @@ hello world
             }
         );
 
-        let s = r"<!-- prettier-ignore -->
-title: Hello
+        let s = r#"<!-- prettier-ignore -->
+title = "Hello"
 
 hello world
-";
+"#;
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
@@ -574,13 +575,13 @@ hello world
         );
 
         // If the first line starts with "#", treat that as a title.
-        let s = r"# title
+        let s = r#"# title
 
 <!-- prettier-ignore -->
-date: 2018-01-11
+date = "2018-01-11"
 
 hello world
-";
+"#;
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
@@ -594,15 +595,15 @@ hello world
         );
 
         // If the first line starts with "<!--", Ignore that
-        let s = r"<!-- -*- apheleia-formatters: prettier -*-  -->
+        let s = r#"<!-- -*- apheleia-formatters: prettier -*-  -->
 
 # title
 
 <!-- prettier-ignore -->
-date: 2018-01-11
+date = "2018-01-11"
 
 hello world
-";
+"#;
         assert_eq!(
             s.parse::<Markdown>().unwrap(),
             Markdown {
