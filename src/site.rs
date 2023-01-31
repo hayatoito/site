@@ -109,7 +109,7 @@ impl FromStr for Markdown {
             // Add "title: xxx" to metadata
             let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
             // TODO: Espace double quote?
-            let metadata_yaml = format!("title = \"{}\"\n{}", title, metadata_yaml);
+            let metadata_yaml = format!("title = \"{title}\"\n{metadata_yaml}");
 
             let content = split.next().unwrap_or("");
 
@@ -132,7 +132,7 @@ impl FromStr for Markdown {
         Ok(Markdown {
             metadata: metadata_yaml
                 .parse()
-                .with_context(|| format!("can not parse metatada: {}", metadata_yaml))?,
+                .with_context(|| format!("can not parse metatada: {metadata_yaml}"))?,
             content,
         })
     }
@@ -144,7 +144,7 @@ fn slug_to_url(slug: &str) -> String {
     } else if slug.ends_with('/') {
         slug.to_string()
     } else if Path::new(slug).extension().is_none() {
-        format!("{}/", slug)
+        format!("{slug}/")
     } else {
         slug.to_string()
     }
@@ -284,8 +284,8 @@ impl Article {
         let mut out_file = PathBuf::from(out_dir);
         out_file.push(url_to_filename(&self.url));
         log::debug!("{:32} => {}", self.url, out_file.display());
-        std::fs::create_dir_all(&out_file.parent().unwrap())?;
-        std::fs::write(&out_file, &html)?;
+        std::fs::create_dir_all(out_file.parent().unwrap())?;
+        std::fs::write(&out_file, html)?;
         Ok(())
     }
 }
@@ -347,7 +347,7 @@ impl Site {
         let mut tera = Tera::new(&format!("{}/**/*", template_dir.display()))?;
         tera.autoescape_on(vec![]); // Disable autoespacing completely
 
-        self.render_markdowns(&tera, &src_dir)?;
+        self.render_markdowns(&tera, src_dir)?;
         if self.article_regex.is_none() {
             self.copy_files()?;
         }
@@ -458,7 +458,7 @@ impl Site {
             }
 
             let relative_path = src_path.strip_prefix(&self.src_dir).expect("");
-            let out_path = self.out_dir.join(&relative_path);
+            let out_path = self.out_dir.join(relative_path);
             log::debug!("{:32} => {}", relative_path.display(), out_path.display());
 
             if src_path.is_dir() {

@@ -82,17 +82,12 @@ fn wrap_header_with_link(
 
     let id = match *id_count {
         0 => raw_id,
-        other => format!("{}-{}", raw_id, other),
+        other => format!("{raw_id}-{other}"),
     };
 
     *id_count += 1;
 
-    format!(
-        r##"<h{level} id="{id}"><a class="self-link" href="#{id}">{text}</a></h{level}>"##,
-        level = level,
-        id = id,
-        text = text,
-    )
+    format!(r##"<h{level} id="{id}"><a class="self-link" href="#{id}">{text}</a></h{level}>"##,)
 }
 
 pub fn build_toc(html: &str, toc_level: Option<u8>) -> String {
@@ -105,8 +100,7 @@ pub fn build_toc(html: &str, toc_level: Option<u8>) -> String {
         None => "1-9".to_string(),
     };
     let regex = Regex::new(&format!(
-        r#"<h(?P<level>[{}]) id="(?P<id>.*?)">(<a.*?>)?(?P<text>.*?)(</a>)?</h\d>"#,
-        header_level
+        r#"<h(?P<level>[{header_level}]) id="(?P<id>.*?)">(<a.*?>)?(?P<text>.*?)(</a>)?</h\d>"#,
     ))
     .unwrap();
     let mut toc = String::new();
