@@ -93,9 +93,9 @@ impl FromStr for Markdown {
         lazy_static! {
             // Skip the comment at the beginning. Emacs may use the first line for buffer-local variables.
             // e.g. <!-- -*- apheleia-formatters: prettier -*- -->
-            static ref COMMENT_LINES: Regex = Regex::new(r#"^<!--.*-->\n+"#).unwrap();
+            static ref COMMENT_LINES: Regex = Regex::new(r"^<!--.*-->\n+").unwrap();
 
-            static ref TITLE: Regex = Regex::new(r#"^# +(.+?) *\n+"#).unwrap();
+            static ref TITLE: Regex = Regex::new(r"^# +(.+?) *\n+").unwrap();
         }
 
         let s = COMMENT_LINES.replace_all(s, "");
