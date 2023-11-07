@@ -25,6 +25,7 @@ struct Metadata {
     slug: Option<String>,
     toc: Option<bool>,
     toc_level: Option<u8>,
+    math: Option<bool>,
     draft: Option<bool>,
     template: Option<String>,
 }
@@ -170,6 +171,7 @@ struct Article {
     draft: bool,
     url: String,
     page: bool,
+    math: bool,
     template: Option<String>,
     content: String,
 }
@@ -216,6 +218,7 @@ impl Article {
             draft: markdown.metadata.draft.unwrap_or(false),
             url,
             page: markdown.metadata.page.unwrap_or(false),
+            math: markdown.metadata.math.unwrap_or(false),
             template: markdown.metadata.template,
             content,
         }
