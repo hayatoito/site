@@ -20,7 +20,7 @@ regex = "1.10.2"
 serde = { version = "1.0.192", features = ["derive"] }
 structopt = "0.3.26"
 tera = "1.19.1"
-toml = "0.8.10"
+toml = "0.8.11"
 unicode-width = "0.1.11"
 walkdir = "2.5.0"
 
