@@ -22,7 +22,7 @@ structopt = "0.3.26"
 tera = "1.19.1"
 toml = "0.8.8"
 unicode-width = "0.1.11"
-walkdir = "2.4.0"
+walkdir = "2.5.0"
 
 [dependencies.chrono]
 features = ["serde"]
