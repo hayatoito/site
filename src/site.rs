@@ -237,7 +237,7 @@ impl Article {
             for a in articles {
                 articles_by_year
                     .entry(a.date.as_ref().unwrap().year())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(a);
             }
             let mut articles_by_year = articles_by_year
