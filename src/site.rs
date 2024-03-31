@@ -310,13 +310,6 @@ impl Config {
     pub fn extend(&mut self, config: &mut Config) {
         self.0.append(&mut config.0);
     }
-
-    fn get_bool(&self, key: &str) -> bool {
-        match &self.0.get(key) {
-            Some(v) => v.as_str() == "true",
-            _ => false,
-        }
-    }
 }
 
 pub struct Site {
@@ -411,22 +404,6 @@ impl Site {
         log::info!("Build articles");
         let mut articles = articles
             .into_par_iter()
-            .filter(|m| {
-                if m.markdown.metadata.draft.unwrap_or(false) {
-                    if self.config.get_bool("output_draft_article") {
-                        log::warn!(
-                            "{:32} => draft => don't skip draft because |output_draft_article| is true",
-                            m.relative_path.display()
-                        );
-                        true
-                    } else {
-                        log::warn!("{:32} => draft => skipped", m.relative_path.display());
-                        false
-                    }
-                } else {
-                    true
-                }
-            })
             .map(|m| -> Result<Article> {
                 let article = Article::new(m);
                 article.render_and_write(&self.config, None, tera, &self.out_dir)?;
@@ -435,6 +412,9 @@ impl Site {
             .collect::<Vec<Result<Article>>>()
             .into_iter()
             .collect::<Result<Vec<Article>>>()?;
+
+        // Remove draft articles.
+        articles.retain(|a| !a.draft);
 
         articles.sort_by_key(|a| a.date);
         articles.reverse();
