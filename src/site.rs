@@ -2,7 +2,6 @@ use anyhow::Context as _;
 pub use anyhow::Result;
 use anyhow::{anyhow, Error};
 use chrono::Datelike;
-use lazy_static::*;
 use minijinja::{context, path_loader, Environment, Value};
 use rayon::prelude::*;
 use regex::Regex;
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::LazyLock;
 
 use crate::html;
 use crate::text;
@@ -79,13 +79,12 @@ impl FromStr for Markdown {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Markdown> {
-        lazy_static! {
-            // Skip the comment at the beginning. Emacs may use the first line for buffer-local variables.
-            // e.g. <!-- -*- apheleia-formatters: prettier -*- -->
-            static ref COMMENT_LINES: Regex = Regex::new(r"^<!--.*-->\n+").unwrap();
+        // Skip the comment at the beginning. Emacs may use the first line for buffer-local variables.
+        // e.g. <!-- -*- apheleia-formatters: prettier -*- -->
+        static COMMENT_LINES: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"^<!--.*-->\n+").unwrap());
 
-            static ref TITLE: Regex = Regex::new(r"^# +(.+?) *\n+").unwrap();
-        }
+        static TITLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^# +(.+?) *\n+").unwrap());
 
         let s = COMMENT_LINES.replace_all(s, "");
 
@@ -112,9 +111,9 @@ impl FromStr for Markdown {
         };
 
         // Ignore comments, such as <!-- prettier-ignore -->, in metadata.
-        lazy_static! {
-            static ref METADATA_COMMENT: Regex = Regex::new(r"(<!--.*\n*)|(-->.*\n*)").unwrap();
-        }
+        static METADATA_COMMENT: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(<!--.*\n*)|(-->.*\n*)").unwrap());
+
         let metadata_yaml = METADATA_COMMENT.replace_all(&metadata_yaml, "");
         assert!(!metadata_yaml.contains("-->"));
         assert!(!metadata_yaml.contains("<!--"));

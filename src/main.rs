@@ -1,18 +1,17 @@
+use clap::Parser;
 use regex::Regex;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
 use site::{Config, Result, Site};
 
-#[derive(StructOpt, Debug)]
-struct Opt {
-    #[structopt(subcommand)]
+#[derive(Parser, Debug)]
+struct Cli {
+    #[command(subcommand)]
     cmd: Command,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 enum Command {
-    #[structopt(name = "build")]
     Build {
         #[structopt(long = "root-dir", default_value = ".")]
         root_dir: String,
@@ -26,7 +25,7 @@ enum Command {
 }
 
 fn main() -> Result<()> {
-    let opt = Opt::from_args();
+    let opt = Cli::parse();
     pretty_env_logger::init();
     match opt.cmd {
         Command::Build {
