@@ -1,16 +1,15 @@
 use anyhow::Context as _;
 pub use anyhow::Result;
+use anyhow::{anyhow, Error};
 use chrono::Datelike;
 use lazy_static::*;
+use minijinja::{context, path_loader, Environment, Value};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tera::{Context, Tera};
-
-use anyhow::{anyhow, Error};
 
 use crate::html;
 use crate::text;
@@ -72,16 +71,6 @@ impl Markdown {
 
     fn post_process_markdown_html(html: &str) -> String {
         let html = html::build_header_links(html);
-
-        // Process site macro:
-        // From: <!-- site-macro raw XXX -->
-        // To: XXX
-        lazy_static! {
-            static ref SITE_MACRO: Regex =
-                Regex::new(r#"<!-- site-macro raw +(?P<raw>.+?) +-->"#).unwrap();
-        }
-        let html = SITE_MACRO.replace_all(&html, r#"$raw"#);
-
         html.to_string()
     }
 }
@@ -224,7 +213,7 @@ impl Article {
         }
     }
 
-    fn context(&self, config: &Config, articles: Option<&[Article]>) -> Context {
+    fn context(&self, config: &Config, articles: Option<&[Article]>) -> Value {
         #[derive(PartialEq, Eq, Debug, Default, Serialize)]
         struct YearArticles<'a> {
             year: i32,
@@ -250,10 +239,16 @@ impl Article {
                 .collect::<Vec<_>>();
             articles_by_year.reverse();
 
-            context.insert("articles", articles);
-            context.insert("articles_by_year", &articles_by_year);
+            context = context! {
+                articles,
+                articles_by_year,
+                ..context
+            };
         };
-        context.insert("entry", &self);
+        context = context! {
+            entry => &self,
+            ..context
+        };
         context
     }
 
@@ -270,9 +265,16 @@ impl Article {
         }
     }
 
-    fn render(&self, config: &Config, articles: Option<&[Article]>, tera: &Tera) -> Result<String> {
+    fn render(
+        &self,
+        config: &Config,
+        articles: Option<&[Article]>,
+        env: &Environment,
+    ) -> Result<String> {
         let context = self.context(config, articles);
-        tera.render(&format!("{}.html", self.template_name()), &context)
+        let template = env.get_template(&format!("{}.html", self.template_name()))?;
+        template
+            .render(&context)
             .map_err(|e| anyhow!("renderer err: {}", e))
     }
 
@@ -280,10 +282,10 @@ impl Article {
         &self,
         config: &Config,
         articles: Option<&[Article]>,
-        tera: &Tera,
+        env: &Environment,
         out_dir: &Path,
     ) -> Result<()> {
-        let html = self.render(config, articles, tera)?;
+        let html = self.render(config, articles, env)?;
         let mut out_file = PathBuf::from(out_dir);
         out_file.push(url_to_filename(&self.url));
         log::debug!("{:32} => {}", self.url, out_file.display());
@@ -301,10 +303,8 @@ impl Config {
         Ok(Config(toml::from_str(&s)?))
     }
 
-    fn context(&self) -> Context {
-        let mut context = Context::new();
-        context.insert("site", &self.0);
-        context
+    fn context(&self) -> minijinja::Value {
+        context! { site => &self.0}
     }
 
     pub fn extend(&mut self, config: &mut Config) {
@@ -340,10 +340,13 @@ impl Site {
     pub fn build(&self) -> Result<()> {
         let src_dir = self.root_dir.join("src");
         let template_dir = self.root_dir.join("template");
-        let mut tera = Tera::new(&format!("{}/**/*", template_dir.display()))?;
-        tera.autoescape_on(vec![]); // Disable autoespacing completely
 
-        self.render_markdowns(&tera, src_dir)?;
+        let mut env = Environment::new();
+        env.set_loader(path_loader(template_dir));
+        env.set_auto_escape_callback(|_name| minijinja::AutoEscape::None);
+        env.set_keep_trailing_newline(true);
+
+        self.render_markdowns(&env, src_dir)?;
         if self.article_regex.is_none() {
             self.copy_files()?;
         }
@@ -380,7 +383,7 @@ impl Site {
             .collect()
     }
 
-    fn render_markdowns(&self, tera: &Tera, src_dir: impl AsRef<Path>) -> Result<()> {
+    fn render_markdowns(&self, env: &Environment, src_dir: impl AsRef<Path>) -> Result<()> {
         let src_dir = src_dir.as_ref().canonicalize().unwrap();
         log::info!("Collecting markdown: {}", src_dir.display());
         let (pages, articles) = self
@@ -406,7 +409,7 @@ impl Site {
             .into_par_iter()
             .map(|m| -> Result<Article> {
                 let article = Article::new(m);
-                article.render_and_write(&self.config, None, tera, &self.out_dir)?;
+                article.render_and_write(&self.config, None, env, &self.out_dir)?;
                 Ok(article)
             })
             .collect::<Vec<Result<Article>>>()
@@ -422,7 +425,7 @@ impl Site {
         log::info!("Build pages");
         for m in pages {
             let page = Article::new(m);
-            page.render_and_write(&self.config, Some(&articles), tera, &self.out_dir)?;
+            page.render_and_write(&self.config, Some(&articles), env, &self.out_dir)?;
         }
         Ok(())
     }
