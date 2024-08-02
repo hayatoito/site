@@ -6,7 +6,7 @@ license = "Apache-2.0"
 name = "site"
 readme = "README.md"
 repository = "https://github.com/hayatoito/site"
-version = "0.7.0"
+version = "0.8.0"
 
 [dependencies]
 anyhow = "1.0.86"
