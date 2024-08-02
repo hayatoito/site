@@ -271,7 +271,7 @@ impl Article {
         env: &Environment,
     ) -> Result<String> {
         let context = self.context(config, articles);
-        let template = env.get_template(&format!("{}.html", self.template_name()))?;
+        let template = env.get_template(&format!("{}.jinja", self.template_name()))?;
         template
             .render(&context)
             .map_err(|e| anyhow!("renderer err: {}", e))
