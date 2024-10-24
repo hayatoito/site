@@ -92,8 +92,6 @@ TODO: Explain
 | `update_date` |                                           | NA                                        |
 | `author`      |                                           | NA                                        |
 | `slug`        | The page's URL                            | Calculated by a relative PATH to `src`    |
-| `toc`         | Whether to generate Table of Contents     | false                                     |
-| `toc_level`   |                                           | NA (arbitrary depth)                      |
 | `draft`       | Skip this markdown                        | false                                     |
 | `template`    | Template file to use in `template` folder | `article` or `page`                       |
 

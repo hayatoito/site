@@ -1,6 +1,5 @@
 use lazy_static::*;
 use regex::Regex;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
 // Convert the given string to a valid HTML element ID
@@ -90,58 +89,6 @@ fn wrap_header_with_link(
     format!(r##"<h{level} id="{id}"><a class="self-link" href="#{id}">{text}</a></h{level}>"##,)
 }
 
-pub fn build_toc(html: &str, toc_level: Option<u8>) -> String {
-    let header_level: String = match toc_level {
-        Some(level) if level <= 9 => (1..=level).map(|i| i.to_string()).collect(),
-        Some(level) => {
-            log::warn!("Invalid toc_level is found: {}. Using 1-9...", level);
-            "1-9".to_string()
-        }
-        None => "1-9".to_string(),
-    };
-    let regex = Regex::new(&format!(
-        r#"<h(?P<level>[{header_level}]) id="(?P<id>.*?)">(<a.*?>)?(?P<text>.*?)(</a>)?</h\d>"#,
-    ))
-    .unwrap();
-    let mut toc = String::new();
-    let list_start = r#"<ul>
-"#;
-    let list_end = r#"</ul>
-"#;
-
-    let mut prev_level = 0;
-    for cap in regex.captures_iter(html) {
-        let level: usize = cap["level"].parse().unwrap();
-        let anchor = format!(
-            r##"<li><a href="#{id}">{text}</a></li>
-"##,
-            id = &cap["id"],
-            text = &cap["text"]
-        );
-        match prev_level.cmp(&level) {
-            Ordering::Less => {
-                for _ in 0..(level - prev_level) {
-                    toc.push_str(list_start);
-                }
-            }
-            Ordering::Greater => {
-                for _ in 0..(prev_level - level) {
-                    toc.push_str(list_end);
-                }
-            }
-            Ordering::Equal => {
-                // do nothing
-            }
-        }
-        toc.push_str(&anchor);
-        prev_level = level;
-    }
-    for _ in 0..prev_level {
-        toc.push_str(list_end);
-    }
-    toc
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,63 +100,5 @@ mod tests {
         assert_eq!(id_from_content("abc def"), "abc-def");
         assert_eq!(id_from_content("あいう abc えお def"), "abc-def");
         assert_eq!(id_from_content("a<a href=xxx>hello</a>b"), "a-hello-b");
-    }
-
-    #[test]
-    fn build_toc_test() {
-        assert_eq!(
-            build_toc(r#"<h1 id="hello1">hello</h1>"#, None),
-            r##"<ul>
-<li><a href="#hello1">hello</a></li>
-</ul>
-"##
-        );
-
-        assert_eq!(
-            build_toc(
-                r#"<h1 id="hello1">Hello 1</h1>
-<h1 id="hello2">Hello 2</h1>
-"#,
-                None
-            ),
-            r##"<ul>
-<li><a href="#hello1">Hello 1</a></li>
-<li><a href="#hello2">Hello 2</a></li>
-</ul>
-"##
-        );
-
-        assert_eq!(
-            build_toc(
-                r#"<h1 id="hello1">Hello 1</h1>
-<h1 id="hello2">Hello 2</h1>
-<h2 id="hello3">Hello 3</h2>
-"#,
-                None
-            ),
-            r##"<ul>
-<li><a href="#hello1">Hello 1</a></li>
-<li><a href="#hello2">Hello 2</a></li>
-<ul>
-<li><a href="#hello3">Hello 3</a></li>
-</ul>
-</ul>
-"##
-        );
-
-        assert_eq!(
-            build_toc(
-                r#"<h1 id="hello1">Hello 1</h1>
-<h1 id="hello2">Hello 2</h1>
-<h2 id="hello3">Hello 3</h2>
-"#,
-                Some(1)
-            ),
-            r##"<ul>
-<li><a href="#hello1">Hello 1</a></li>
-<li><a href="#hello2">Hello 2</a></li>
-</ul>
-"##
-        );
     }
 }

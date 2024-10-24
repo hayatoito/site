@@ -22,8 +22,6 @@ struct Metadata {
     date: Option<chrono::NaiveDate>,
     update_date: Option<chrono::NaiveDate>,
     slug: Option<String>,
-    toc: Option<bool>,
-    toc_level: Option<u8>,
     math: Option<bool>,
     draft: Option<bool>,
     template: Option<String>,
@@ -154,8 +152,6 @@ struct Article {
     author: Option<String>,
     date: Option<chrono::NaiveDate>,
     update_date: Option<chrono::NaiveDate>,
-    toc: bool,
-    toc_html: Option<String>,
     draft: bool,
     url: String,
     page: bool,
@@ -189,7 +185,6 @@ impl Article {
             .display()
             .to_string();
         let content = markdown.render();
-        let toc = markdown.metadata.toc.unwrap_or(false);
 
         Article {
             title: markdown.metadata.title,
@@ -197,12 +192,6 @@ impl Article {
             author: markdown.metadata.author,
             date: markdown.metadata.date,
             update_date: markdown.metadata.update_date,
-            toc,
-            toc_html: if toc {
-                Some(html::build_toc(&content, markdown.metadata.toc_level))
-            } else {
-                None
-            },
             draft: markdown.metadata.draft.unwrap_or(false),
             url,
             page: markdown.metadata.page.unwrap_or(false),
