@@ -1,6 +1,6 @@
-use lazy_static::*;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 // Convert the given string to a valid HTML element ID
 fn normalize_id(content: &str) -> String {
@@ -15,9 +15,7 @@ fn normalize_id(content: &str) -> String {
         })
         .collect::<String>();
 
-    lazy_static! {
-        static ref SPACES: Regex = Regex::new(r" +").unwrap();
-    }
+    static SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +").unwrap());
 
     let ret = SPACES.replace_all(ret.trim(), "-").to_string();
     if ret.is_empty() {
@@ -37,9 +35,7 @@ fn id_from_content(content: &str) -> String {
     }
 
     // Remove tag. e.g. <a href=xxx>hello</a>  => hello
-    lazy_static! {
-        static ref TAG: Regex = Regex::new(r"</?\w+.*?>").unwrap();
-    }
+    static TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"</?\w+.*?>").unwrap());
     let content = TAG.replace_all(&content, " ");
     normalize_id(content.as_ref())
 }
@@ -64,9 +60,8 @@ fn wrap_header_with_link(
     content: &str,
     id_counter: &mut HashMap<String, usize>,
 ) -> String {
-    lazy_static! {
-        static ref ANCHOR_REGEX: Regex = Regex::new(r#"<a name="(?P<id>.*?)"></a>"#).unwrap();
-    }
+    static ANCHOR_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#"<a name="(?P<id>.*?)"></a>"#).unwrap());
 
     let (raw_id, text) = if let Some(caps) = ANCHOR_REGEX.captures(content) {
         (caps["id"].to_string(), ANCHOR_REGEX.replace(content, ""))
