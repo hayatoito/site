@@ -26,7 +26,7 @@ enum Command {
 
 fn main() -> Result<()> {
     let opt = Cli::parse();
-    pretty_env_logger::init();
+    env_logger::init();
     match opt.cmd {
         Command::Build {
             config,
