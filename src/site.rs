@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 pub use anyhow::Result;
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use chrono::Datelike;
-use minijinja::{context, path_loader, Environment, Value};
+use minijinja::{Environment, Value, context, path_loader};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -86,26 +86,29 @@ impl FromStr for Markdown {
 
         let s = COMMENT_LINES.replace_all(s, "");
 
-        let (metadata_yaml, content) = if let Some(cap) = TITLE.captures(&s) {
-            // If the first line starts with "#", treat it as a title.
-            let title = cap[1].to_string();
-            let s = TITLE.replace(&s, "").to_string();
+        let (metadata_yaml, content) = match TITLE.captures(&s) {
+            Some(cap) => {
+                // If the first line starts with "#", treat it as a title.
+                let title = cap[1].to_string();
+                let s = TITLE.replace(&s, "").to_string();
 
-            let mut split = s.splitn(2, "\n\n");
+                let mut split = s.splitn(2, "\n\n");
 
-            // Add "title: xxx" to metadata
-            let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
-            // TODO: Espace double quote?
-            let metadata_yaml = format!("title = \"{title}\"\n{metadata_yaml}");
+                // Add "title: xxx" to metadata
+                let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
+                // TODO: Espace double quote?
+                let metadata_yaml = format!("title = \"{title}\"\n{metadata_yaml}");
 
-            let content = split.next().unwrap_or("");
+                let content = split.next().unwrap_or("");
 
-            (metadata_yaml, content.to_string())
-        } else {
-            let mut split = s.splitn(2, "\n\n");
-            let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
-            let content = split.next().unwrap_or("");
-            (metadata_yaml.to_string(), content.to_string())
+                (metadata_yaml, content.to_string())
+            }
+            _ => {
+                let mut split = s.splitn(2, "\n\n");
+                let metadata_yaml = split.next().ok_or_else(|| anyhow!("split error"))?;
+                let content = split.next().unwrap_or("");
+                (metadata_yaml.to_string(), content.to_string())
+            }
         };
 
         // Ignore comments, such as <!-- prettier-ignore -->, in metadata.
@@ -344,16 +347,15 @@ impl Site {
     fn collect_markdown(&self, src_dir: impl AsRef<Path>) -> Result<Vec<MarkdownFile>> {
         glob::glob(&format!("{}/**/*.md", src_dir.as_ref().display()))?
             .filter_map(std::result::Result::ok)
-            .flat_map(|f| {
-                if let Some(ref regex) = self.article_regex {
+            .flat_map(|f| match self.article_regex {
+                Some(ref regex) => {
                     if regex.is_match(f.as_os_str().to_str().unwrap()) {
                         Some(f)
                     } else {
                         None
                     }
-                } else {
-                    Some(f)
                 }
+                _ => Some(f),
             })
             .map(|f| -> Result<MarkdownFile> {
                 let relative_path = f.strip_prefix(&src_dir).expect("prefix does not match");

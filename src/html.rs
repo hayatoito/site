@@ -18,11 +18,7 @@ fn normalize_id(content: &str) -> String {
     static SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" +").unwrap());
 
     let ret = SPACES.replace_all(ret.trim(), "-").to_string();
-    if ret.is_empty() {
-        "a".to_string()
-    } else {
-        ret
-    }
+    if ret.is_empty() { "a".to_string() } else { ret }
 }
 
 fn id_from_content(content: &str) -> String {
@@ -63,13 +59,12 @@ fn wrap_header_with_link(
     static ANCHOR_REGEX: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r#"<a name="(?P<id>.*?)"></a>"#).unwrap());
 
-    let (raw_id, text) = if let Some(caps) = ANCHOR_REGEX.captures(content) {
-        (caps["id"].to_string(), ANCHOR_REGEX.replace(content, ""))
-    } else {
-        (
+    let (raw_id, text) = match ANCHOR_REGEX.captures(content) {
+        Some(caps) => (caps["id"].to_string(), ANCHOR_REGEX.replace(content, "")),
+        _ => (
             id_from_content(content),
             std::borrow::Cow::Borrowed(content),
-        )
+        ),
     };
 
     let id_count = id_counter.entry(raw_id.to_owned()).or_insert(0);
