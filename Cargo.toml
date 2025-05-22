@@ -22,6 +22,7 @@ serde = { version = "1.0.213", features = ["derive"] }
 toml = "0.8.19"
 unicode-width = "0.2.0"
 walkdir = "2.5.0"
+orgize = "0.9.1"
 
 [dependencies.chrono]
 features = ["serde"]

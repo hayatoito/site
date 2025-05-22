@@ -13,8 +13,15 @@ use std::sync::LazyLock;
 
 use crate::html;
 use crate::text;
+use orgize;
 
-#[derive(PartialEq, Eq, Debug, Deserialize, Default)]
+#[derive(Debug)]
+enum SourceFile {
+    Markdown(MarkdownFile),
+    Org(OrgFile),
+}
+
+#[derive(PartialEq, Eq, Debug, Deserialize, Default, Clone)]
 struct Metadata {
     page: Option<bool>,
     title: String,
@@ -70,6 +77,67 @@ impl Markdown {
     fn post_process_markdown_html(html: &str) -> String {
         let html = html::build_header_links(html);
         html.to_string()
+    }
+}
+
+#[derive(Debug)]
+struct OrgFile {
+    relative_path: PathBuf,
+    org: Org,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+struct Org {
+    metadata: Metadata,
+    content: String,
+}
+
+impl Org {
+    pub fn render(&self) -> String {
+        let s = text::remove_newline_between_cjk(&self.content);
+        let s = text::remove_deno_fmt_ignore(&s);
+        let html = orgize::Org::parse(&s).to_html();
+        html::build_header_links(&html).to_string()
+    }
+}
+
+impl FromStr for Org {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Org> {
+        let mut metadata = Metadata::default();
+        let mut content_lines = Vec::new();
+        let mut in_metadata = true;
+
+        for line in s.lines() {
+            if in_metadata && line.starts_with("#+") {
+                let parts: Vec<&str> = line[2..].splitn(2, ':').collect();
+                if parts.len() == 2 {
+                    let key = parts[0].trim().to_uppercase();
+                    let value = parts[1].trim();
+                    match key.as_str() {
+                        "TITLE" => metadata.title = value.to_string(),
+                        "AUTHOR" => metadata.author = Some(value.to_string()),
+                        "DATE" => metadata.date = value.parse().ok(),
+                        "SLUG" => metadata.slug = Some(value.to_string()),
+                        "DRAFT" => metadata.draft = Some(value.parse().unwrap_or(false)),
+                        "TEMPLATE" => metadata.template = Some(value.to_string()),
+                        "PAGE" => metadata.page = Some(value.parse().unwrap_or(false)),
+                        "MATH" => metadata.math = Some(value.parse().unwrap_or(false)),
+                        // Add other common Org keywords if needed
+                        _ => {} // Unknown keywords are ignored
+                    }
+                }
+            } else {
+                in_metadata = false;
+                content_lines.push(line);
+            }
+        }
+
+        Ok(Org {
+            metadata,
+            content: content_lines.join("\n"),
+        })
     }
 }
 
@@ -164,14 +232,24 @@ struct Article {
 }
 
 impl Article {
-    fn new(
-        MarkdownFile {
-            relative_path,
-            markdown,
-        }: MarkdownFile,
-    ) -> Article {
-        log::debug!("article: {}", relative_path.display());
-        let slug = if let Some(slug) = markdown.metadata.slug.as_ref() {
+    fn new(source_file: SourceFile) -> Article {
+        let (relative_path, metadata, content) = match source_file {
+            SourceFile::Markdown(MarkdownFile {
+                relative_path,
+                markdown,
+            }) => {
+                log::debug!("markdown article: {}", relative_path.display());
+                let content = markdown.render();
+                (relative_path, markdown.metadata, content)
+            }
+            SourceFile::Org(OrgFile { relative_path, org }) => {
+                log::debug!("org article: {}", relative_path.display());
+                let content = org.render();
+                (relative_path, org.metadata, content)
+            }
+        };
+
+        let slug = if let Some(slug) = metadata.slug.as_ref() {
             slug.to_string()
         } else {
             relative_path
@@ -187,19 +265,18 @@ impl Article {
             .join(slug_to_url(&slug))
             .display()
             .to_string();
-        let content = markdown.render();
 
         Article {
-            title: markdown.metadata.title,
+            title: metadata.title,
             slug,
-            author: markdown.metadata.author,
-            date: markdown.metadata.date,
-            update_date: markdown.metadata.update_date,
-            draft: markdown.metadata.draft.unwrap_or(false),
+            author: metadata.author,
+            date: metadata.date,
+            update_date: metadata.update_date,
+            draft: metadata.draft.unwrap_or(false),
             url,
-            page: markdown.metadata.page.unwrap_or(false),
-            math: markdown.metadata.math.unwrap_or(false),
-            template: markdown.metadata.template,
+            page: metadata.page.unwrap_or(false),
+            math: metadata.math.unwrap_or(false),
+            template: metadata.template,
             content,
         }
     }
@@ -337,68 +414,90 @@ impl Site {
         env.set_auto_escape_callback(|_name| minijinja::AutoEscape::None);
         env.set_keep_trailing_newline(true);
 
-        self.render_markdowns(&env, src_dir)?;
+        self.render_source_files(&env, src_dir)?;
         if self.article_regex.is_none() {
             self.copy_files()?;
         }
         Ok(())
     }
 
-    fn collect_markdown(&self, src_dir: impl AsRef<Path>) -> Result<Vec<MarkdownFile>> {
-        glob::glob(&format!("{}/**/*.md", src_dir.as_ref().display()))?
-            .filter_map(std::result::Result::ok)
-            .flat_map(|f| match self.article_regex {
-                Some(ref regex) => {
-                    if regex.is_match(f.as_os_str().to_str().unwrap()) {
-                        Some(f)
-                    } else {
-                        None
-                    }
-                }
-                _ => Some(f),
+    fn collect_source_files(&self, src_dir: impl AsRef<Path>) -> Result<Vec<SourceFile>> {
+        let src_path = src_dir.as_ref();
+        let md_glob = format!("{}/**/*.md", src_path.display());
+        let org_glob = format!("{}/**/*.org", src_path.display());
+
+        let markdown_files = glob::glob(&md_glob)?
+            .filter_map(Result::ok)
+            .filter(|f| match &self.article_regex {
+                Some(regex) => regex.is_match(f.as_os_str().to_str().unwrap()),
+                None => true,
             })
-            .map(|f| -> Result<MarkdownFile> {
-                let relative_path = f.strip_prefix(&src_dir).expect("prefix does not match");
-                log::debug!("found: {}", relative_path.display());
-                Ok(MarkdownFile {
+            .map(|f| -> Result<SourceFile> {
+                let relative_path = f.strip_prefix(src_path).expect("prefix does not match");
+                log::debug!("found markdown: {}", relative_path.display());
+                Ok(SourceFile::Markdown(MarkdownFile {
                     relative_path: PathBuf::from(relative_path),
                     markdown: std::fs::read_to_string(&f)
-                        .with_context(|| format!("can not read: {}", f.display()))?
+                        .with_context(|| format!("can not read markdown: {}", f.display()))?
                         .parse()
-                        .with_context(|| format!("can not parse: {}", f.display()))?,
-                })
+                        .with_context(|| format!("can not parse markdown: {}", f.display()))?,
+                }))
+            });
+
+        let org_files = glob::glob(&org_glob)?
+            .filter_map(Result::ok)
+            .filter(|f| match &self.article_regex {
+                Some(regex) => regex.is_match(f.as_os_str().to_str().unwrap()),
+                None => true,
             })
-            .collect::<Vec<Result<MarkdownFile>>>()
-            .into_iter()
-            .collect()
+            .map(|f| -> Result<SourceFile> {
+                let relative_path = f.strip_prefix(src_path).expect("prefix does not match");
+                log::debug!("found org: {}", relative_path.display());
+                Ok(SourceFile::Org(OrgFile {
+                    relative_path: PathBuf::from(relative_path),
+                    org: std::fs::read_to_string(&f)
+                        .with_context(|| format!("can not read org: {}", f.display()))?
+                        .parse()
+                        .with_context(|| format!("can not parse org: {}", f.display()))?,
+                }))
+            });
+
+        markdown_files.chain(org_files).collect()
     }
 
-    fn render_markdowns(&self, env: &Environment, src_dir: impl AsRef<Path>) -> Result<()> {
-        let src_dir = src_dir.as_ref().canonicalize().unwrap();
-        log::info!("Collecting markdown: {}", src_dir.display());
+    fn render_source_files(&self, env: &Environment, src_dir: impl AsRef<Path>) -> Result<()> {
+        let src_dir_path = src_dir.as_ref().canonicalize().unwrap();
+        log::info!("Collecting source files: {}", src_dir_path.display());
         let (pages, articles) = self
-            .collect_markdown(&src_dir)?
+            .collect_source_files(&src_dir_path)?
             .into_iter()
-            .partition::<Vec<MarkdownFile>, _>(|src| src.markdown.metadata.page.unwrap_or(false));
+            .partition::<Vec<SourceFile>, _>(|src| match src {
+                SourceFile::Markdown(md) => md.markdown.metadata.page.unwrap_or(false),
+                SourceFile::Org(org) => org.org.metadata.page.unwrap_or(false),
+            });
         log::info!(
             "Found {} articles and {} pages",
             articles.len(),
             pages.len()
         );
 
-        for article in &articles {
+        for article_source in &articles {
+            let (path_for_log, metadata_for_log) = match article_source {
+                SourceFile::Markdown(md) => (md.relative_path.clone(), md.markdown.metadata.clone()),
+                SourceFile::Org(org) => (org.relative_path.clone(), org.org.metadata.clone()),
+            };
             anyhow::ensure!(
-                article.markdown.metadata.date.is_some(),
+                metadata_for_log.date.is_some(),
                 "{} doesn't have date",
-                article.relative_path.display()
+                path_for_log.display()
             )
         }
 
         log::info!("Build articles");
         let mut articles = articles
             .into_par_iter()
-            .map(|m| -> Result<Article> {
-                let article = Article::new(m);
+            .map(|src_file| -> Result<Article> {
+                let article = Article::new(src_file);
                 article.render_and_write(&self.config, None, env, &self.out_dir)?;
                 Ok(article)
             })
@@ -429,8 +528,10 @@ impl Site {
         for entry in walkdir::WalkDir::new(&self.src_dir) {
             let entry = entry?;
             let src_path = entry.path();
-            if let Some("md") = src_path.extension().map(|ext| ext.to_str().unwrap()) {
-                continue;
+            if let Some(ext_str) = src_path.extension().and_then(|ext| ext.to_str()) {
+                if ext_str == "md" || ext_str == "org" {
+                    continue;
+                }
             }
 
             let relative_path = src_path.strip_prefix(&self.src_dir).expect("");
@@ -591,5 +692,147 @@ hello world
                 content: "hello world\n".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn parse_org_metadata_test() {
+        let s = r#"#+TITLE: Org Title
+#+AUTHOR: Test Author
+#+DATE: 2024-01-01
+#+SLUG: org-slug
+#+DRAFT: true
+#+TEMPLATE: custom_template.jinja
+#+PAGE: true
+#+MATH: true
+"#;
+        let org_struct: Org = s.parse().unwrap();
+        let metadata = org_struct.metadata;
+        assert_eq!(metadata.title, "Org Title");
+        assert_eq!(metadata.author, Some("Test Author".to_string()));
+        assert_eq!(metadata.date, Some("2024-01-01".parse().unwrap()));
+        assert_eq!(metadata.slug, Some("org-slug".to_string()));
+        assert_eq!(metadata.draft, Some(true));
+        assert_eq!(metadata.template, Some("custom_template.jinja".to_string()));
+        assert_eq!(metadata.page, Some(true));
+        assert_eq!(metadata.math, Some(true));
+
+        // Test partial metadata
+        let s_partial = r#"#+TITLE: Partial Title
+#+DATE: 2023-12-31
+"#;
+        let org_partial: Org = s_partial.parse().unwrap();
+        assert_eq!(org_partial.metadata.title, "Partial Title");
+        assert_eq!(org_partial.metadata.date, Some("2023-12-31".parse().unwrap()));
+        assert_eq!(org_partial.metadata.author, None);
+    }
+
+    #[test]
+    fn parse_org_content_test() {
+        let s = r#"#+TITLE: Content Test
+#+DATE: 2024-01-02
+
+* Heading 1
+Some paragraph text.
+- list item 1
+- list item 2
+"#;
+        let org_struct: Org = s.parse().unwrap();
+        assert_eq!(org_struct.metadata.title, "Content Test");
+        assert_eq!(
+            org_struct.content,
+            "* Heading 1\nSome paragraph text.\n- list item 1\n- list item 2"
+        );
+
+        // Test without metadata
+        let s_content_only = r#"* Just Content
+No metadata here.
+"#;
+        let org_content_only: Org = s_content_only.parse().unwrap();
+        assert_eq!(org_content_only.metadata.title, ""); // Default title
+        assert_eq!(org_content_only.content, "* Just Content\nNo metadata here.");
+
+        // Test with empty lines between metadata and content
+        let s_empty_lines = r#"#+TITLE: Empty Lines Test
+
+
+* Content Starts Here
+"#;
+        let org_empty_lines: Org = s_empty_lines.parse().unwrap();
+        assert_eq!(org_empty_lines.metadata.title, "Empty Lines Test");
+        assert_eq!(org_empty_lines.content, "\n* Content Starts Here");
+    }
+
+    #[test]
+    fn render_org_html_test() {
+        let org_document = Org {
+            metadata: Metadata {
+                title: "Render Test".to_string(),
+                ..Default::default()
+            },
+            content: "* Hello Org\nThis is org content with a [[https://example.com][link]].".to_string(),
+        };
+        let html = org_document.render();
+        assert!(html.contains("<h1 id=\"hello-org\">Hello Org</h1>"));
+        assert!(html.contains("<p>\nThis is org content with a <a href=\"https://example.com\">link</a>.\n</p>")); // orgize adds newline
+
+        // Test with a list
+        let org_list = Org {
+            metadata: Metadata::default(),
+            content: "- item 1\n- item 2".to_string(),
+        };
+        let html_list = org_list.render();
+        assert!(html_list.contains("<ul>"));
+        assert!(html_list.contains("<li>item 1</li>"));
+        assert!(html_list.contains("<li>item 2</li>"));
+        assert!(html_list.contains("</ul>"));
+    }
+
+    #[test]
+    fn article_from_org_test() {
+        let org_content_str = r#"#+TITLE: Org Article Title
+#+AUTHOR: Org Author
+#+DATE: 2024-03-15
+#+SLUG: my-org-article
+#+DRAFT: false
+#+PAGE: false
+#+MATH: true
+
+* Introduction
+This is an article written in Org mode.
+"#;
+        let org_file = OrgFile {
+            relative_path: PathBuf::from("test_articles/my-org-article.org"),
+            org: org_content_str.parse().unwrap(),
+        };
+
+        let article = Article::new(SourceFile::Org(org_file));
+
+        assert_eq!(article.title, "Org Article Title");
+        assert_eq!(article.author, Some("Org Author".to_string()));
+        assert_eq!(article.date, Some("2024-03-15".parse().unwrap()));
+        assert_eq!(article.slug, "my-org-article");
+        assert_eq!(article.draft, false);
+        assert_eq!(article.page, false);
+        assert_eq!(article.math, true);
+        assert_eq!(article.url, "test_articles/my-org-article/");
+        assert!(article.content.contains("<h1 id=\"introduction\">Introduction</h1>"));
+        assert!(article.content.contains("<p>\nThis is an article written in Org mode.\n</p>"));
+
+        // Test with minimal metadata (relying on slug generation from filename)
+         let org_minimal_str = r#"#+TITLE: Minimal Org
+#+DATE: 2024-03-16
+
+Minimal content.
+"#;
+        let org_file_minimal = OrgFile {
+            relative_path: PathBuf::from("another/minimal.org"),
+            org: org_minimal_str.parse().unwrap(),
+        };
+        let article_minimal = Article::new(SourceFile::Org(org_file_minimal));
+        assert_eq!(article_minimal.title, "Minimal Org");
+        assert_eq!(article_minimal.date, Some("2024-03-16".parse().unwrap()));
+        assert_eq!(article_minimal.slug, "minimal"); // auto-generated from filename
+        assert_eq!(article_minimal.url, "another/minimal/");
+        assert!(article_minimal.content.contains("<p>\nMinimal content.\n</p>"));
     }
 }
