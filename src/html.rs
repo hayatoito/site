@@ -56,6 +56,11 @@ fn wrap_header_with_link(
     id_counter: &mut HashMap<String, usize>,
 ) -> String {
     if let Some(id) = id {
+        let id_count = id_counter.entry(id.to_owned()).or_insert(0);
+        if *id_count != 0 {
+            log::warn!("Found duplicated id: {title} {id}");
+        }
+        *id_count += 1;
         format!(r##"<h{level} id="{id}"><a class="self-link" href="#{id}">{title}</a></h{level}>"##,)
     } else {
         let id = id_from_title(title);
