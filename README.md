@@ -129,7 +129,7 @@ The `entry` object contains all the metadata fields, plus the following:
 | `entry.title`   | The title.              |
 | `entry.content` | The rendered HTML body. |
 
-# Building the Site
+# Generate Your Site
 
 ## From the CLI
 
