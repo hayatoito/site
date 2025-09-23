@@ -1,6 +1,6 @@
 [package]
 authors = ["Hayato Ito <hayatoito@gmail.com>"]
-description = "A simple, fast, opinioned static site generator"
+description = "A simple, fast, opinionated static site generator"
 edition = "2024"
 license = "Apache-2.0"
 name = "site"

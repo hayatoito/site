@@ -11,6 +11,7 @@ struct Cli {
 }
 
 #[derive(Parser, Debug)]
+#[command(version, about)]
 enum Command {
     Build {
         #[structopt(long = "root", default_value = ".")]
