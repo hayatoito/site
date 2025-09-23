@@ -3,63 +3,57 @@
 [![build](https://github.com/hayatoito/site/workflows/build/badge.svg)](https://github.com/hayatoito/site/actions)
 [![crates.io](https://img.shields.io/crates/v/site.svg)](https://crates.io/crates/site)
 
-**Site** is a fast, simple, and opinioned static site generator, written in
-[Rust](https://www.rust-lang.org/). Highlights include:
+**Site** is a fast, simple, and opinionated static site generator written in
+[Rust](https://www.rust-lang.org/). Its main features are:
 
-- Write your content in Markdown format. Site is using
-  [pulldown_cmark](https://crates.io/crates/pulldown-cmark) as a markdown parser
-  with extensions.
-- Uses [Jinja2](http://jinja.pocoo.org/) as a template language. **Site** is
-  using [tera](https://crates.io/crates/tera) template engine.
-- Very simple. Blazingly fast. Build articles in parallel.
-- Inspired by [Pelican](http://docs.getpelican.com/en/stable/), which is a
-  static site generator written in Python. **Site** has a similar concept of
-  _Articles_ and _Pages_.
-- Inflexible and opinioned _by design_. **Site** implements only what the author
-  needs to build a simple static site, like
-  [https://hayatoito.github.io/](https://hayatoito.github.io/). If you want to
-  customize, I'd recommend to fork **Site** itself. **Site** is intentionally
-  kept very small so you can understand codebase and customize it easily.
+- **Markdown-based**: Write your content in Markdown with extensions, powered by
+  [pulldown_cmark](https://crates.io/crates/pulldown-cmark).
+- **Jinja2 Templates**: Uses the [minijinja](https://crates.io/crates/minijinja)
+  engine for templating.
+- **Fast & Simple**: Blazingly fast, with parallel processing of articles.
+- **Inspired by Pelican**: Borrows the concepts of _Articles_ and _Pages_ from
+  the Python static site generator
+  [Pelican](http://docs.getpelican.com/en/stable/).
+- **Opinionated by Design**: Implements only what the author needs for a simple
+  static site like [hayatoito.github.io](https://hayatoito.github.io/). For
+  custom features, forking is recommended. The codebase is intentionally small,
+  making it easy to understand and modify.
 
-# Install
+# Installation
 
 ```shell
 cargo install site
 ```
 
-# Usages
+# Usage
 
-No documentations yet.
+There is no documentation yet.
 
-Meanwhile, as a living document, use
+In the meantime, you can use the
 [hayatoito/hayatoito.github.io](https://github.com/hayatoito/hayatoito.github.io)
-as your starter boilerplate.
-[https://hayatoito.github.io/](https://hayatoito.github.io/) is built from that
+repository as a starter template. The author's site,
+[hayatoito.github.io](https://hayatoito.github.io/), is built from this
 repository.
 
-# Folder structure
+# Folder Structure
 
 ```text
 root_dir/
  - src/
-   - (Put your markdown files here)
+   - (Your markdown files go here)
  - template/
-   - (Put your template files here)
+   - (Your template files go here)
 ```
 
-- [`src/`](https://github.com/hayatoito/hayatoito.github.io/tree/main/src) is a
-  folder where your all markdown files live. They are converted into HTML files,
-  using Jinja2 template, and are copied into the output directory.
+- `src/`: This directory contains all your Markdown files. They are converted to
+  HTML using Jinja2 templates and placed in the output directory. Any other
+  files in this directory are also copied to the output directory.
 
-  Any other resources in `src` directory are also copied to the output
-  directory.
+- `template/`: This directory holds your Jinja2 template files.
 
-- [`template/`](https://github.com/hayatoito/hayatoito.github.io/tree/main/template)
-  is a folder where jinja2's template files live.
+# Markdown Format
 
-# Markdown format
-
-`Site` uses markdown.
+`Site` uses Markdown with TOML front matter for metadata.
 
 ```markdown
 # Article title
@@ -76,29 +70,23 @@ Hello Article!
 - world
 ```
 
-Nothing special except for:
-
-- The first section is considered as a title of the article.
-- _Metadata_, such as `date`, follows.
-
 # Metadata
 
-TODO: Explain
-
-| Name          | Description                               | Default value                             |
-| ------------- | ----------------------------------------- | ----------------------------------------- |
-| `page`        |                                           | false                                     |
-| `date`        |                                           | (`date` is mandatory unless `page: true`) |
-| `update_date` |                                           | NA                                        |
-| `author`      |                                           | NA                                        |
-| `slug`        | The page's URL                            | Calculated by a relative PATH to `src`    |
-| `draft`       | Skip this markdown                        | false                                     |
-| `template`    | Template file to use in `template` folder | `article` or `page`                       |
+| Name          | Description                                       | Default Value                |
+| ------------- | ------------------------------------------------- | ---------------------------- |
+| `page`        | If `true`, the file is treated as a page.         | `false`                      |
+| `date`        | The publication date of the article.              | (mandatory for articles)     |
+| `update_date` | The date the article was last updated.            | (none)                       |
+| `author`      | The author of the article.                        | (none)                       |
+| `slug`        | The URL slug for the page.                        | (derived from the file path) |
+| `math`        | If `true`, enables MathJax for the page.          | `false`                      |
+| `draft`       | If `true`, the article will not be published.     | `false`                      |
+| `template`    | The template file to use from the `template` dir. | `article` or `page`          |
 
 # Pages
 
-If a markdown's metadata contains `page: true`, **Site** consider that the
-markdown represents a _page_, instead of an _article_.
+If a Markdown file's metadata contains `page = true`, **Site** treats it as a
+_page_ instead of an _article_.
 
 ```markdown
 # Page title
@@ -115,53 +103,48 @@ Hello Page!
 - world
 ```
 
-The differences between _article_ and _page_ are:
+The main differences between an article and a page are:
 
-- A _page_ will not be included in `articles` template variable. Neither in
-  `articles_by_year`.
-- A _page_ doesn't have to contain `date` metadata.
+- A page is not included in the `articles` or `articles_by_year` template
+  variables.
+- A page does not require a `date` in its metadata.
 
-# Template variables
+# Template Variables
 
-TODO: Explain
+| Name               | Available On     | Description                                       |
+| ------------------ | ---------------- | ------------------------------------------------- |
+| `entry`            | Pages & Articles | The current article or page object.               |
+| `site`             | Pages & Articles | Site configuration from the `--config` parameter. |
+| `articles`         | Pages only       | A list of all articles.                           |
+| `articles_by_year` | Pages only       | A list of articles grouped by year.               |
 
-| Name               | page | article | Description                                                |
-| ------------------ | ---- | ------- | ---------------------------------------------------------- |
-| `entry`            | x    | x       | Represents an article or a page (its metadata and content) |
-| `site`             | x    | x       | Site configuration given by `--config` parameter           |
-| `articles`         | x    |         | The list of the articles                                   |
-| `articles_by_year` | x    |         | The list of { year, articles}                              |
-
-- `articles` and `articles_by_year` are only available in a page. In other
-  words, an article can't know other articles.
+An article template does not have access to other articles.
 
 ## `entry`
 
-In addition to its metadata, `entry` contains the following fields:
+The `entry` object contains all the metadata fields, plus the following:
 
-| Name             | Description                    |
-| ---------------- | ------------------------------ |
-| `entry.title`    | Title                          |
-| `entry.content`  | Generated HTML                 |
-| `entry.toc_html` | Generated TOC (if `toc: true`) |
+| Name            | Description             |
+| --------------- | ----------------------- |
+| `entry.title`   | The title.              |
+| `entry.content` | The rendered HTML body. |
 
-# Build
+# Building the Site
 
-## CLI
+## From the CLI
 
 ```shell
-site build --root-dir . --config=config.toml --out-dir out
+site build --root . --out out --config=config.toml
 ```
 
-`root-dir` should contain `src` and `template` folders.
-
-See
+The `root` directory must contain `src` and `template` directories. For more
+examples, see the
 [Make.zsh](https://github.com/hayatoito/hayatoito.github.io/blob/main/Make.zsh)
-for the example CLI usages for various tasks.
+file in the starter template.
 
-## GitHub Action
+## With GitHub Actions
 
-You can also use GitHub Action to build and deploy automatically if you are
-using GitHub Pages. See
+You can use GitHub Actions to automatically build and deploy your site to GitHub
+Pages. See the example
 [build.yml](https://github.com/hayatoito/hayatoito.github.io/blob/main/.github/workflows/build.yml)
-as an example.
+workflow file.

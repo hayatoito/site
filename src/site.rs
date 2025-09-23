@@ -49,11 +49,7 @@ struct Markdown {
 
 impl Markdown {
     pub fn render(&self) -> String {
-        let mut opts = pulldown_cmark::Options::empty();
-        opts.insert(pulldown_cmark::Options::ENABLE_FOOTNOTES);
-        opts.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
-        opts.insert(pulldown_cmark::Options::ENABLE_TABLES);
-        opts.insert(pulldown_cmark::Options::ENABLE_TASKLISTS);
+        let opts = pulldown_cmark::Options::all();
         let mut html = String::with_capacity(self.content.len() * 3 / 2);
         let content = self.pre_process_content();
         let p = pulldown_cmark::Parser::new_ext(&content, opts);

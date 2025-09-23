@@ -13,12 +13,12 @@ struct Cli {
 #[derive(Parser, Debug)]
 enum Command {
     Build {
-        #[structopt(long = "root-dir", default_value = ".")]
-        root_dir: String,
+        #[structopt(long = "root", default_value = ".")]
+        root: String,
         #[structopt(long = "config")]
         config: Option<String>,
-        #[structopt(long = "out-dir")]
-        out_dir: String,
+        #[structopt(long = "out")]
+        out: String,
         #[structopt(long = "article-regex")]
         article_regex: Option<String>,
     },
@@ -30,13 +30,13 @@ fn main() -> Result<()> {
     match opt.cmd {
         Command::Build {
             config,
-            root_dir,
-            out_dir,
+            root,
+            out,
             article_regex,
         } => {
-            let root_dir = PathBuf::from(root_dir);
+            let root = PathBuf::from(root);
             let config = {
-                let mut default_config = Config::read(root_dir.join("config.toml"))?;
+                let mut default_config = Config::read(root.join("config.toml"))?;
                 if let Some(config) = config.as_ref() {
                     default_config.extend(&mut Config::read(config)?);
                 }
@@ -44,8 +44,8 @@ fn main() -> Result<()> {
             };
             let app = Site::new(
                 config,
-                root_dir,
-                PathBuf::from(out_dir),
+                root,
+                PathBuf::from(out),
                 article_regex.map(|regex| Regex::new(&regex).expect("invalid regex")),
             );
             app.build()
