@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 pub use anyhow::Result;
-use anyhow::{Error, anyhow};
+use anyhow::{anyhow, Error};
 use chrono::Datelike;
-use minijinja::{Environment, Value, context, path_loader};
+use minijinja::{context, path_loader, Environment, Value};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -49,7 +49,13 @@ struct Markdown {
 
 impl Markdown {
     pub fn render(&self) -> String {
-        let opts = pulldown_cmark::Options::all();
+        let mut opts = pulldown_cmark::Options::empty();
+        opts.insert(pulldown_cmark::Options::ENABLE_TABLES);
+        opts.insert(pulldown_cmark::Options::ENABLE_FOOTNOTES);
+        opts.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+        opts.insert(pulldown_cmark::Options::ENABLE_TASKLISTS);
+        opts.insert(pulldown_cmark::Options::ENABLE_HEADING_ATTRIBUTES);
+        opts.insert(pulldown_cmark::Options::ENABLE_GFM);
         let mut html = String::with_capacity(self.content.len() * 3 / 2);
         let content = self.pre_process_content();
         let p = pulldown_cmark::Parser::new_ext(&content, opts);
