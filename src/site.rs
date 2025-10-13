@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 pub use anyhow::Result;
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use chrono::Datelike;
-use minijinja::{context, path_loader, Environment, Value};
+use minijinja::{Environment, Value, context, path_loader};
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
